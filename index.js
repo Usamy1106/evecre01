@@ -711,6 +711,53 @@ function renderMainBoard(container) {
       </div>`;
   };
 
+  const renderRankingView = () => {
+    return `
+      <div class="flex-1 flex flex-col page-transition">
+        <!-- 表彰台エリア -->
+        <div class="pt-12 pb-16 px-6 flex justify-center items-end gap-1">
+          <!-- 2位 -->
+          <div class="flex flex-col items-center">
+             <div class="w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden bg-gray-200 mb-2">
+                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Dog" class="w-full h-full">
+             </div>
+             <div class="w-24 h-24 bg-[#FFC300] rounded-t-xl flex items-center justify-center">
+                <span class="text-white text-[32px] font-bold">2</span>
+             </div>
+          </div>
+          <!-- 1位 -->
+          <div class="flex flex-col items-center">
+             <div class="w-24 h-24 rounded-full border-4 border-white shadow-xl overflow-hidden bg-gray-200 mb-2 relative z-10 scale-110">
+                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=King" class="w-full h-full">
+             </div>
+             <div class="w-28 h-32 bg-[#0CA1E3] rounded-t-xl flex items-center justify-center shadow-lg">
+                <span class="text-white text-[48px] font-bold">1</span>
+             </div>
+          </div>
+          <!-- 3位 -->
+          <div class="flex flex-col items-center">
+             <div class="w-16 h-16 rounded-full border-4 border-white shadow-md overflow-hidden bg-gray-200 mb-2">
+                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Flower" class="w-full h-full">
+             </div>
+             <div class="w-22 h-20 bg-[#9EDF05] rounded-t-xl flex items-center justify-center">
+                <span class="text-white text-[24px] font-bold">3</span>
+             </div>
+          </div>
+        </div>
+
+        <!-- メンバーリスト/エンプティステート -->
+        <div class="flex-1 bg-white rounded-t-[40px] shadow-[0_-10px_30px_rgba(0,0,0,0.05)] p-10 flex flex-col items-center justify-center text-center">
+           <img src="./images/icon/icon-Setting.svg" class="w-16 h-16 opacity-10 mb-6 grayscale">
+           <h3 class="text-m font-bold text-[#484545] mb-2">メンバーがいません</h3>
+           <p class="text-rs text-[#A7AAAC] font-bold mb-8 leading-relaxed">メンバーを追加して<br>ミッションポイントを競い合いましょう！</p>
+           <button class="bg-[#FDFBF8] border border-[#D3D6D8] px-8 py-3 rounded-full text-rs font-bold text-[#484545] active:scale-95 transition-transform" onclick="state.setView('CREATE_PROJECT_INVITE', '${p.id}')">
+             メンバーを招待する
+           </button>
+        </div>
+      </div>
+    `;
+  };
+
   const ongoingMissions = getSortedMissions(p.missions.filter(m => m.status !== 'cleared'));
 
   container.innerHTML = `
@@ -761,7 +808,7 @@ function renderMainBoard(container) {
                </div>
             </section>
           </div>
-        ` : state.mainBoardTab === 'ARCHIVE' ? renderArchive() : `<div class="p-10 text-center text-[#A7AAAC]">ランキングは準備中です</div>`}
+        ` : state.mainBoardTab === 'ARCHIVE' ? renderArchive() : renderRankingView()}
       </main>
       ${state.mainBoardTab === 'MAIN' ? `<button onclick="window.openMissionModal()" class="fixed bottom-10 right-6 w-14 h-14 bg-[#0CA1E3] rounded-full shadow-[0_4px_15px_rgba(12,161,227,0.4)] flex items-center justify-center text-white active:scale-90 transition-transform z-40"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>` : ''}
     </div>

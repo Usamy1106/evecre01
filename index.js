@@ -6,11 +6,30 @@ const SEED_TYPES = [
   { id: 'lucky', path: './images/plants/seed-lucky.svg', name: 'ラッキー', plantPrefix: './images/plants/plant-lucky-' }
 ];
 
-const PROPOSAL_HELP = {
-  p1: { title: "開催場所を決める", body: "イベントをどこで行うか決めましょう。オンラインの場合はツール名を、対面の場合は施設名を入力します。", format: 'text' },
-  p2: { title: "広報リンクを挿入", body: "SNSやWebサイトなど、参加者が詳細を確認できるURLを準備しましょう。", format: 'link' },
-  p3: { title: "メインビジュアルを作成", body: "イベントの顔となる画像を作成します。テーマカラーやロゴを含めると効果的です。", format: 'image' }
+const MISSION_DESCRIPTIONS = {
+  'def-1': "目的設定は、「成功の8割」を決める作業です。軸が固まれば、無駄な迷いは消えます。誰に、どんな価値を届けたいのか。私たちの「旗印」を明確にしましょう。",
+  'def-2': "タイトルは参加者が最初に触れる、イベントの「第一印象」そのものです。一目で期待感が高まる名前を決定しましょう。\n\nポイント\n・言葉からイメージができるか？\n・リズムが良くキャッチーで、SNSなどでつぶやきやすいか？\n・決めた「目的」と乖離していないか？",
+  'def-3': "概要は、目的を具体化し、関係者全員の認識を一致させる基盤です。「いつ、どこで、誰に、何を、どう届けるか（5W1H）」を明確にし、理想を現実に落とし込み、強固な土台を作りましょう。",
+  'p1': "イベントをどこで行うか決めましょう。オンラインの場合はツール名を、対面の場合は施設名を入力します。",
+  'p2': "SNSやWebサイトなど、参加者が詳細を確認できるURLを準備しましょう。",
+  'p3': "イベントの顔となる画像を作成します。テーマカラーやロゴを含めると効果的です。",
+  'p4': "イベントの成功を測るための指標を設定します。来場者数、満足度、SNSのシェア数など、具体的に記述しましょう。",
+  'p5': "限られたリソースをどこに集中させるか決めます。会場費、広報費、制作費などの概算を出し、優先順位をつけましょう。",
+  'p6': "SNSで拡散されやすい独自のタグを決めましょう。イベント名を含めると効果的です。",
+  'p7': "当日の流れを時間単位で書き出し、運営メンバーの動きを可視化しましょう。",
+  'p8': "配信機材、音響、PC、備品など、当日必要なものをリストアップしましょう。"
 };
+
+const PROPOSAL_POOL = [
+  { id: 'p1', title: '開催場所を決める', tag: '企画', type: 'plan', format: 'text', priority: 4 },
+  { id: 'p2', title: '広報リンクを挿入', tag: '広報', type: 'public', format: 'link', priority: 3 },
+  { id: 'p3', title: 'メインビジュアルを作成', tag: '制作', type: 'create', format: 'image', priority: 4 },
+  { id: 'p4', title: '数値目標（KPI）を設定する', tag: '企画', type: 'plan', format: 'text', priority: 4 },
+  { id: 'p5', title: '予算配分を決める', tag: '運営', type: 'op', format: 'text', priority: 5 },
+  { id: 'p6', title: 'SNSハッシュタグを決定', tag: '広報', type: 'public', format: 'text', priority: 3 },
+  { id: 'p7', title: '当日のタイムスケジュール', tag: '運営', type: 'op', format: 'text', priority: 5 },
+  { id: 'p8', title: '必要な機材リスト作成', tag: '制作', type: 'create', format: 'text', priority: 3 }
+];
 
 const LABEL_CONFIG = {
   '企画': { color: '#0CA1E3', bg: 'bg-[#0CA1E3]/10', border: 'border-[#0CA1E3]', text: 'text-[#0CA1E3]' },
@@ -24,7 +43,7 @@ const state = {
   projects: [],
   currentView: 'HOME',
   selectedProjectId: null,
-  mainBoardTab: 'MAIN', // 'MAIN' | 'RANKING' | 'ARCHIVE'
+  mainBoardTab: 'MAIN',
   editingMissionId: null,
   draftProject: { name: '', description: '', dates: [], seedType: 'jack' },
   draftMission: {
@@ -32,6 +51,7 @@ const state = {
   },
   missionModalTab: 'BASIC',
   calendarDate: new Date(),
+  missionSortMode: 'createdAt',
 
   init() {
     const saved = localStorage.getItem('event_planner_projects');
@@ -60,9 +80,9 @@ const state = {
     if (!this.draftProject.name || !this.draftProject.description || this.draftProject.dates.length === 0) return;
     
     const defaultMissions = [
-      { id: 'def-1', title: 'イベントの目的を決める', tag: '企画', daysLeft: 30, type: 'plan', isDeletable: false, dates: [], clearFormat: 'text', status: 'yet' },
-      { id: 'def-2', title: 'イベントのタイトルを決める', tag: '企画', daysLeft: 30, type: 'plan', isDeletable: false, dates: [], clearFormat: 'text', status: 'yet' },
-      { id: 'def-3', title: 'イベントの概要を決める', tag: '企画', daysLeft: 30, type: 'plan', isDeletable: false, dates: [], clearFormat: 'text', status: 'yet' }
+      { id: 'def-1', title: 'イベントの目的を決める', tag: '企画', daysLeft: 30, type: 'plan', isDeletable: false, dates: [], clearFormat: 'text', status: 'yet', createdAt: Date.now(), priority: 3 },
+      { id: 'def-2', title: 'イベントのタイトルを決める', tag: '企画', daysLeft: 30, type: 'plan', isDeletable: false, dates: [], clearFormat: 'text', status: 'yet', createdAt: Date.now(), priority: 3 },
+      { id: 'def-3', title: 'イベントの概要を決める', tag: '企画', daysLeft: 30, type: 'plan', isDeletable: false, dates: [], clearFormat: 'text', status: 'yet', createdAt: Date.now(), priority: 3 }
     ];
 
     const newProject = {
@@ -78,11 +98,8 @@ const state = {
       daysLeft: this.calculateDaysLeft(this.draftProject.dates[0]),
       missions: defaultMissions,
       clearedData: {}, 
-      proposals: [
-        { id: 'p1', title: '開催場所を決める', tag: '企画', type: 'plan' },
-        { id: 'p2', title: '広報リンクを挿入', tag: '広報', type: 'public' },
-        { id: 'p3', title: 'メインビジュアルを作成', tag: '制作', type: 'create' }
-      ]
+      proposals: PROPOSAL_POOL.slice(0, 3), // 初期提案
+      lastProposalClearedTime: null
     };
     this.projects.push(newProject);
     this.save();
@@ -102,6 +119,18 @@ const state = {
   render() {
     const appEl = document.getElementById('app');
     if (!appEl) return;
+    
+    // 提案リフレッシュのチェック
+    if (this.selectedProjectId) {
+      const p = this.projects.find(x => x.id === this.selectedProjectId);
+      if (p && p.proposals.length === 0 && p.lastProposalClearedTime) {
+        const hoursDiff = (Date.now() - p.lastProposalClearedTime) / (1000 * 60 * 60);
+        if (hoursDiff >= 12) {
+          this.refreshProposals(p);
+        }
+      }
+    }
+
     switch (this.currentView) {
       case 'HOME': renderHome(appEl); break;
       case 'CREATE_PROJECT_INFO': renderCreateProjectInfo(appEl); break;
@@ -109,10 +138,33 @@ const state = {
       case 'CREATE_PROJECT_INVITE': renderCreateProjectInvite(appEl); break;
       case 'MAIN_BOARD': renderMainBoard(appEl); break;
     }
+  },
+
+  refreshProposals(p) {
+    // 未使用の提案からランダムに3つ（重複なし）
+    const usedIds = p.missions.map(m => m.originProposalId).filter(id => id);
+    const available = PROPOSAL_POOL.filter(pr => !usedIds.includes(pr.id));
+    const shuffled = available.sort(() => 0.5 - Math.random());
+    p.proposals = shuffled.slice(0, 3);
+    p.lastProposalClearedTime = null;
+    this.save();
   }
 };
 
 window.state = state;
+
+// --- 並び替えロジック ---
+function getSortedMissions(missions) {
+  return [...missions].sort((a, b) => {
+    if (state.missionSortMode === 'priority') return (b.priority || 0) - (a.priority || 0);
+    if (state.missionSortMode === 'deadline') {
+      const dateA = a.dates && a.dates.length > 0 ? new Date(a.dates[0]).getTime() : Infinity;
+      const dateB = b.dates && b.dates.length > 0 ? new Date(b.dates[0]).getTime() : Infinity;
+      return dateA - dateB;
+    }
+    return (a.createdAt || 0) - (b.createdAt || 0);
+  });
+}
 
 // --- アーカイブ直接編集 ---
 window.editArchiveItem = (type) => {
@@ -132,6 +184,9 @@ window.editArchiveItem = (type) => {
     const m = p.missions.find(x => x.title === '開催場所を決める');
     missionId = m?.id || 'venue-temp';
     currentVal = p.clearedData[missionId]?.content || '';
+  } else if (type === 'period') {
+    missionId = 'period-temp';
+    currentVal = p.clearedData['period-temp']?.content || (p.dates.length > 0 ? `${p.dates[0]} 〜 ${p.dates[p.dates.length-1]}` : '');
   } else if (type === 'image') {
     const m = p.missions.find(x => x.title === 'メインビジュアルを作成');
     missionId = m?.id || 'image-temp';
@@ -142,22 +197,26 @@ window.editArchiveItem = (type) => {
   const newVal = prompt(`${type === 'url' ? 'URL' : '内容'}を入力してください`, currentVal);
   if (newVal === null) return;
 
-  if (!p.missions.find(m => m.id === missionId)) {
-    p.missions.push({
+  let m = p.missions.find(x => x.id === missionId);
+  if (!m) {
+    m = {
       id: missionId,
-      title: type === 'url' ? '広報リンクを挿入' : type === 'venue' ? '開催場所を決める' : type,
+      title: type === 'url' ? '広報リンクを挿入' : type === 'venue' ? '開催場所を決める' : type === 'period' ? '開催日時' : type,
       tag: type === 'url' ? '広報' : '企画',
       clearFormat: format,
       status: 'cleared',
       dates: [],
-      daysLeft: 7
-    });
+      daysLeft: 7,
+      isDeletable: (missionId.startsWith('def-') || type === 'url' || type === 'venue') ? false : true,
+      createdAt: Date.now(),
+      priority: 3
+    };
+    p.missions.push(m);
   } else {
-    const m = p.missions.find(x => x.id === missionId);
     m.status = 'cleared';
   }
 
-  p.clearedData[missionId] = { content: newVal, timestamp: Date.now(), title: type, format: format };
+  p.clearedData[missionId] = { content: newVal, timestamp: Date.now(), title: m.title, format: format };
   state.save();
   state.render();
 };
@@ -171,11 +230,29 @@ window.copyInviteCode = (code) => {
 
 window.shareInvite = (code) => {
   if (navigator.share) {
-    navigator.share({
+    const shareData = {
       title: 'イベントチームへの招待',
       text: `一緒にイベントを作りましょう！招待コード: ${code}`,
-      url: window.location.href
-    }).catch(console.error);
+    };
+    
+    // URLがhttp/httpsで始まる有効なものかチェック（Invalid URLエラー対策）
+    try {
+      const currentUrl = window.location.href;
+      if (currentUrl.startsWith('http')) {
+        shareData.url = currentUrl;
+      }
+    } catch (e) {}
+
+    navigator.share(shareData).catch(err => {
+      console.error('Share failed:', err);
+      // 万が一失敗した場合のフォールバック
+      if (err.name === 'TypeError') {
+        navigator.share({
+           title: shareData.title,
+           text: shareData.text
+        }).catch(() => {});
+      }
+    });
   } else {
     alert('このブラウザは共有機能に対応していません。コードをコピーして送ってください。');
   }
@@ -231,7 +308,7 @@ window.submitMissionClear = (missionId) => {
   const project = state.projects.find(p => p.id === state.selectedProjectId);
   let m = project.missions.find(x => x.id === missionId);
   if (!m) {
-     m = { id: missionId, title: 'メインビジュアルを作成', tag: '制作', clearFormat: 'image', status: 'yet', dates: [], daysLeft: 7 };
+     m = { id: missionId, title: 'ミッション', tag: '企画', clearFormat: 'text', status: 'yet', dates: [], daysLeft: 7, createdAt: Date.now(), priority: 3, isDeletable: true };
      project.missions.push(m);
   }
   let content = '';
@@ -254,8 +331,10 @@ window.submitMissionClear = (missionId) => {
 window.openClearMissionModal = (missionId, overrideFormat = null) => {
   const project = state.projects.find(p => p.id === state.selectedProjectId);
   let m = project.missions.find(x => x.id === missionId);
-  const title = m ? m.title : 'メインビジュアルを作成';
+  const title = m ? m.title : 'ミッション';
   const format = overrideFormat || (m ? m.clearFormat : 'text');
+  const desc = MISSION_DESCRIPTIONS[missionId] || (m && m.originProposalId ? MISSION_DESCRIPTIONS[m.originProposalId] : "ミッションをクリアしてプロジェクトを進めましょう。");
+
   const overlay = document.createElement('div');
   overlay.id = 'clear-mission-modal';
   overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-6 page-transition';
@@ -267,7 +346,7 @@ window.openClearMissionModal = (missionId, overrideFormat = null) => {
   } else {
     inputHtml = `<input type="url" id="clear-input" class="w-full p-4 rounded-2xl bg-[#EBE8E5] focus:outline-none text-r" placeholder="https://...">`;
   }
-  overlay.innerHTML = `<div class="bg-white rounded-3xl w-full max-w-sm p-8 shadow-2xl relative animate-fadeIn"><button onclick="document.getElementById('clear-mission-modal').remove()" class="absolute top-4 right-4 p-2 opacity-40"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button><h3 class="heading-m text-[#484545] mb-2 pr-6">${title}</h3><p class="text-rs text-[#A7AAAC] mb-6 font-bold">提出物を入力してください</p>${inputHtml}<button onclick="window.submitMissionClear('${missionId}')" class="btn-primary w-full py-4 mt-8 heading-r font-bold">クリアする</button></div>`;
+  overlay.innerHTML = `<div class="bg-white rounded-3xl w-full max-w-sm p-8 shadow-2xl relative animate-fadeIn"><button onclick="document.getElementById('clear-mission-modal').remove()" class="absolute top-4 right-4 p-2 opacity-40"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button><h3 class="heading-m text-[#484545] mb-2 pr-6">${title}</h3><p class="text-rs text-[#A7AAAC] mb-6 font-bold whitespace-pre-wrap">${desc}</p>${inputHtml}<button onclick="window.submitMissionClear('${missionId}')" class="btn-primary w-full py-4 mt-8 heading-r font-bold">クリアする</button></div>`;
   document.body.appendChild(overlay);
 };
 
@@ -319,7 +398,7 @@ window.openMissionModal = (missionId = null) => {
     const m = project.missions.find(x => x.id === missionId);
     state.draftMission = { ...m, dates: m.dates || [], labels: [m.tag] };
   } else {
-    state.draftMission = { title: '', labels: ['企画'], priority: 0, dates: [], clearFormat: 'text', note: '' };
+    state.draftMission = { title: '', labels: ['企画'], priority: 3, dates: [], clearFormat: 'text', note: '' };
   }
   state.missionModalTab = 'BASIC';
   let overlay = document.getElementById('mission-overlay');
@@ -334,10 +413,18 @@ window.openMissionModal = (missionId = null) => {
   window.renderMissionModalContent();
 };
 
-window.closeMissionModal = () => {
-  const panel = document.getElementById('mission-panel');
-  if (panel) panel.classList.add('translate-y-full');
-  setTimeout(() => { const overlay = document.getElementById('mission-overlay'); if (overlay) overlay.remove(); }, 300);
+window.deleteMission = () => {
+  if (!state.editingMissionId) return;
+  const project = state.projects.find(p => p.id === state.selectedProjectId);
+  const m = project.missions.find(x => x.id === state.editingMissionId);
+  if (m && !m.isDeletable) return alert('初期フローのミッションは削除できません');
+  
+  if (confirm('本当にこのミッションを削除しますか？')) {
+    project.missions = project.missions.filter(x => x.id !== state.editingMissionId);
+    state.save();
+    window.closeMissionModal();
+    state.render();
+  }
 };
 
 window.renderMissionModalContent = function() {
@@ -347,6 +434,7 @@ window.renderMissionModalContent = function() {
   titleEl.innerText = isEdit ? 'ミッションを編集' : '新規ミッションを作成';
   const groups = getConsecutiveGroups(state.draftMission.dates);
   let dateDisplay = groups.length > 0 ? `<div class="flex items-center gap-2"><div class="bg-[#EBE8E5] px-2 py-1 rounded">${groups[0][0]}</div> 〜 <div class="bg-[#EBE8E5] px-2 py-1 rounded">${groups[0][groups[0].length-1]}</div></div>` : 'カレンダーから設定する';
+  
   const renderBasic = () => `
     <div class="flex flex-col h-full">
       <div class="flex justify-center gap-10 mb-6">
@@ -363,7 +451,27 @@ window.renderMissionModalContent = function() {
       <button onclick="window.createOrUpdateMission()" class="btn-primary w-full py-4 heading-r font-bold mt-4 shadow-lg shadow-blue-200">${isEdit ? '保存' : '作成'}</button>
     </div>
   `;
-  container.innerHTML = isBasic ? renderBasic() : `<div class="p-10 text-center text-gray">詳細設定は開発中です</div>`;
+  
+  const renderDetail = () => `
+    <div class="flex flex-col h-full">
+      <div class="flex justify-center gap-10 mb-6">
+        <button onclick="window.setMissionTab('BASIC')" class="text-[14px] font-bold pb-1 border-b-2 border-transparent text-[#A7AAAC]">基本設定</button>
+        <button onclick="window.setMissionTab('DETAIL')" class="text-[14px] font-bold pb-1 border-b-2 border-[#9EDF05] text-[#9EDF05]">詳細設定</button>
+      </div>
+      <div class="space-y-6 flex-1">
+        ${isEdit && state.draftMission.isDeletable !== false ? `
+          <button onclick="window.deleteMission()" class="w-full flex items-center justify-between p-4 bg-[#FFEEEA] text-[#EE3E12] rounded-2xl border border-[#EE3E12]/20 active:scale-95 transition-transform">
+             <span class="font-bold">このミッションを削除する</span>
+             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+          </button>
+        ` : `
+          <div class="p-10 text-center text-[#A7AAAC] text-rs">このミッションは詳細設定を変更できません</div>
+        `}
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = isBasic ? renderBasic() : renderDetail();
 };
 
 window.setMissionTab = (tab) => { state.missionModalTab = tab; window.renderMissionModalContent(); };
@@ -373,19 +481,40 @@ window.createOrUpdateMission = () => {
   const project = state.projects.find(p => p.id === state.selectedProjectId);
   if (state.editingMissionId) {
     const idx = project.missions.findIndex(m => m.id === state.editingMissionId);
-    if (idx > -1) project.missions[idx] = { ...project.missions[idx], title: state.draftMission.title, tag: state.draftMission.labels[0], dates: state.draftMission.dates, clearFormat: state.draftMission.clearFormat };
+    if (idx > -1) project.missions[idx] = { ...project.missions[idx], title: state.draftMission.title, tag: state.draftMission.labels[0], dates: state.draftMission.dates, clearFormat: state.draftMission.clearFormat, priority: state.draftMission.priority };
   } else {
-    project.missions.push({ id: Date.now().toString(), title: state.draftMission.title, tag: state.draftMission.labels[0], daysLeft: 7, dates: [...state.draftMission.dates], clearFormat: state.draftMission.clearFormat, status: 'yet', isDeletable: true });
+    project.missions.push({ id: Date.now().toString(), title: state.draftMission.title, tag: state.draftMission.labels[0], daysLeft: 7, dates: [...state.draftMission.dates], clearFormat: state.draftMission.clearFormat, status: 'yet', isDeletable: true, createdAt: Date.now(), priority: state.draftMission.priority });
   }
   state.save(); window.closeMissionModal(); state.render();
 };
 
 window.addProposalToMission = (pid) => {
-  const prop = PROPOSAL_HELP[pid];
   const project = state.projects.find(p => p.id === state.selectedProjectId);
-  if (project.missions.some(m => m.title === prop.title)) return;
-  project.missions.push({ id: Date.now().toString(), title: prop.title, tag: pid==='p1'?'企画':pid==='p2'?'広報':'制作', daysLeft: 7, dates: [], clearFormat: prop.format, status: 'yet', isDeletable: true });
-  state.save(); state.render();
+  const pr = project.proposals.find(x => x.id === pid);
+  if (!pr) return;
+
+  project.missions.push({ 
+    id: Date.now().toString(), 
+    originProposalId: pr.id,
+    title: pr.title, 
+    tag: pr.tag, 
+    daysLeft: 7, 
+    dates: [], 
+    clearFormat: pr.format, 
+    status: 'yet', 
+    isDeletable: true, 
+    createdAt: Date.now(), 
+    priority: pr.priority 
+  });
+
+  // 提案をリストから削除
+  project.proposals = project.proposals.filter(x => x.id !== pid);
+  if (project.proposals.length === 0) {
+    project.lastProposalClearedTime = Date.now();
+  }
+  
+  state.save(); 
+  state.render();
 };
 
 window.toggleMissionMenu = (e, missionId) => {
@@ -429,7 +558,7 @@ const Components = {
     const conf = LABEL_CONFIG[text] || { color: '#484545' };
     return `<span class="px-1.5 py-0.5 rounded text-[8px] text-white font-bold" style="background-color: ${conf.color}">${text}</span>`;
   },
-  PenIcon: (type) => `<button onclick="window.editArchiveItem('${type}')" class="p-1 opacity-60 hover:opacity-100 transition-opacity"><img src="./images/icon/icon-Pen.svg" class="w-4 h-4"></button>`
+  PenIcon: (type) => `<button onclick="window.editArchiveItem('${type}')" class="p-1 opacity-60 hover:opacity-100 transition-opacity"><img src="./images/icon/%20icon-Pen.svg" class="w-4 h-4"></button>`
 };
 
 // --- 各画面レンダリング ---
@@ -463,22 +592,73 @@ function renderCreateProjectSeed(container) {
 function renderCreateProjectInvite(container) {
   const code = state.draftProject.inviteCode || Math.random().toString(36).substring(2,10).toUpperCase();
   state.draftProject.inviteCode = code;
-  container.innerHTML = `<div class="flex flex-col min-h-screen bg-[#FDFBF8]"><header class="px-6 py-8 text-center"><h1 class="heading-l text-[#0CA1E3]">新規プロジェクトの作成</h1></header><main class="flex-1 px-8 pt-6 pb-12 flex flex-col items-center page-transition"><h2 class="heading-l mb-16 text-[#484545]">チームメンバーを招待</h2><div class="text-center space-y-6 mb-12 w-full"><div onclick="window.copyInviteCode('${code}')" class="bg-white border border-[#D3D6D8] p-8 rounded-2xl shadow-sm cursor-pointer active:bg-[#FDFBF8] transition-colors"><p class="text-[12px] text-[#A7AAAC] font-bold mb-2">タップしてコピー</p><p class="heading-m tracking-[0.3em] font-mono text-[#484545]">${code}</p></div><button onclick="window.shareInvite('${code}')" class="flex items-center justify-center gap-2 mx-auto bg-[#0CA1E3] text-white px-8 py-3 rounded-full font-bold shadow-md"><img src="./images/icon/icon-Link.svg" class="w-5 h-5 brightness-200">招待リンクを送る</button></div><button onclick="state.addProject()" class="btn-primary w-full py-4 heading-r font-bold mt-auto">プロジェクトを作成</button></main></div>`;
+  container.innerHTML = `<div class="flex flex-col min-h-screen bg-[#FDFBF8]"><header class="px-6 py-8 text-center"><h1 class="heading-l text-[#0CA1E3]">新規プロジェクトの作成</h1></header><main class="flex-1 px-8 pt-6 pb-12 flex flex-col items-center page-transition"><h2 class="heading-l mb-16 text-[#484545]">チームメンバーを招待</h2><div class="text-center space-y-6 mb-12 w-full"><div onclick="window.copyInviteCode('${code}')" class="bg-white border border-[#D3D6D8] p-8 rounded-2xl shadow-sm cursor-pointer active:bg-[#FDFBF8] transition-colors"><p class="text-[12px] text-[#A7AAAC] font-bold mb-2">タップしてコピー</p><p class="heading-m tracking-[0.3em] font-mono text-[#484545]">${code}</p></div><button onclick="window.shareInvite('${code}')" class="flex items-center justify-center gap-3 mx-auto bg-[#0CA1E3] text-white px-10 py-4 rounded-full font-bold shadow-lg active:scale-95 transition-transform"><img src="./images/icon/icon-Link-white.svg" class="w-6 h-6">招待リンクを送る</button></div><button onclick="state.addProject()" class="btn-primary w-full py-4 heading-r font-bold mt-auto">プロジェクトを作成</button></main></div>`;
 }
+
+window.changeMissionSort = (mode) => {
+  state.missionSortMode = mode;
+  state.render();
+};
 
 function renderMainBoard(container) {
   const p = state.projects.find(x => x.id === state.selectedProjectId);
   if (!p) return state.setView('HOME');
   const seed = SEED_TYPES.find(s => s.id === p.seedType);
+
   const renderArchive = () => {
     const title = p.clearedData['def-2']?.content || '未設定', summary = p.clearedData['def-3']?.content || '未設定';
     const mainVisual = p.clearedData[Object.keys(p.clearedData).find(k => p.clearedData[k].title==='メインビジュアルを作成' || p.clearedData[k].title==='image')]?.content;
     const url = p.clearedData[Object.keys(p.clearedData).find(k => p.clearedData[k].format==='link' || p.clearedData[k].title==='url')]?.content || '未設定';
     const venue = p.clearedData[Object.keys(p.clearedData).find(k => p.clearedData[k].title==='開催場所を決める' || p.clearedData[k].title==='venue')]?.content || '未設定';
-    const period = p.dates.length > 0 ? `${p.dates[0]} 〜 ${p.dates[p.dates.length-1]}` : '未設定';
-    return `<div class="pt-0 pb-20 page-transition space-y-6"><div class="relative group w-full aspect-[2/1] overflow-hidden bg-[#EBE8E5] flex items-center justify-center shadow-inner">${mainVisual ? `<img src="${mainVisual}" class="w-full h-full object-cover">` : `<img src="./images/icon/icon-image.svg" class="w-12 h-12 opacity-20">`}<div class="absolute bottom-4 right-4 bg-white/80 p-2 rounded-full shadow-lg">${Components.PenIcon('image')}</div></div><div class="px-6 space-y-8"><div class="text-center"><div class="flex items-center justify-center gap-2 mb-1"><h2 class="text-[18px] font-bold text-[#484545] leading-snug">「${title}」</h2>${Components.PenIcon('title')}</div></div><div class="space-y-6"><section><div class="flex items-center gap-2 mb-2"><h3 class="text-[12px] font-bold text-[#A7AAAC]">概要</h3>${Components.PenIcon('summary')}</div><p class="text-[13px] text-[#484545] leading-relaxed whitespace-pre-wrap font-medium">${summary}</p></section><section class="grid grid-cols-[80px_1fr_40px] gap-y-6 text-[13px]"><div class="font-bold text-[#A7AAAC]">期間</div><div class="font-bold text-[#484545]">${period}</div><div></div><div class="font-bold text-[#A7AAAC]">URL</div><div class="font-bold text-[#0CA1E3] underline truncate">${url}</div><div>${Components.PenIcon('url')}</div><div class="font-bold text-[#A7AAAC]">場所</div><div class="font-bold text-[#484545]">${venue}</div><div>${Components.PenIcon('venue')}</div></section></div><button onclick="window.showMissionListModal()" class="btn-secondary w-full py-4 heading-r font-bold">ミッション一覧</button></div></div>`;
+    const period = p.clearedData['period-temp']?.content || (p.dates.length > 0 ? `${p.dates[0]} 〜 ${p.dates[p.dates.length-1]}` : '未設定');
+    
+    return `<div class="pt-0 pb-20 page-transition space-y-6"><div class="relative group w-full aspect-[2/1] overflow-hidden bg-[#EBE8E5] flex items-center justify-center shadow-inner">${mainVisual ? `<img src="${mainVisual}" class="w-full h-full object-cover">` : `<img src="./images/icon/icon-image.svg" class="w-12 h-12 opacity-20">`}<div class="absolute bottom-4 right-4 bg-white/80 p-2 rounded-full shadow-lg">${Components.PenIcon('image')}</div></div><div class="px-6 space-y-8"><div class="text-center"><div class="flex items-center justify-center gap-2 mb-1"><h2 class="text-[18px] font-bold text-[#484545] leading-snug">「${title}」</h2>${Components.PenIcon('title')}</div></div><div class="space-y-6"><section><div class="flex items-center gap-2 mb-2"><h3 class="text-[12px] font-bold text-[#A7AAAC]">概要</h3>${Components.PenIcon('summary')}</div><p class="text-[13px] text-[#484545] leading-relaxed whitespace-pre-wrap font-medium">${summary}</p></section><section class="grid grid-cols-[80px_1fr_40px] gap-y-6 text-[13px]"><div class="font-bold text-[#A7AAAC]">期間</div><div class="font-bold text-[#484545] flex items-center gap-2">${period} ${Components.PenIcon('period')}</div><div></div><div class="font-bold text-[#A7AAAC]">URL</div><div class="font-bold text-[#0CA1E3] underline truncate">${url}</div><div>${Components.PenIcon('url')}</div><div class="font-bold text-[#A7AAAC]">場所</div><div class="font-bold text-[#484545]">${venue}</div><div>${Components.PenIcon('venue')}</div></section></div><button onclick="window.showMissionListModal()" class="btn-secondary w-full py-4 heading-r font-bold">ミッション一覧</button></div></div>`;
   };
-  container.innerHTML = `<div class="flex flex-col min-h-screen bg-[#FDFBF8]"><div class="sticky top-0 bg-[#FDFBF8] z-30 shadow-sm">${Components.Header(p)}${Components.Tabs(state.mainBoardTab)}</div><main class="flex-1 overflow-y-auto no-scrollbar pb-32">${state.mainBoardTab === 'MAIN' ? `<div class="px-6 pt-4 space-y-6 page-transition"><div onclick="window.openCalendarModal('view')" class="cursor-pointer bg-white border border-[#D3D6D8] rounded-xl p-2.5 flex items-center justify-center gap-3 shadow-sm scale-90 active:scale-95 transition-transform"><img src="./images/icon/icon-Calender.svg" class="w-5 h-5"><span class="heading-rs tracking-tight">開催まで残り <span class="text-[20px] font-mono">${p.daysLeft}</span> 日</span></div><div class="flex justify-center -mt-2"><div class="relative w-48 h-48 rounded-full border-[10px] border-[#EBE8E5] flex items-center justify-center shadow-inner"><div class="w-36 h-36 bg-[#CFD8FF] rounded-full flex items-center justify-center"><img src="${seed.plantPrefix}1.svg" class="w-24 h-28 object-contain mt-2 opacity-80"></div></div></div><div class="grid grid-cols-3 gap-2">${p.proposals.map((pr, i) => `<div onclick="window.addProposalToMission('${pr.id}')" class="cursor-pointer bg-white border border-[#D3D6D8] rounded-2xl p-2.5 shadow-sm flex flex-col min-h-[120px] active:bg-[#FDFBF8] transition-colors"><div class="flex items-center justify-between mb-1.5"><span class="text-[7.5px] text-black/40 font-bold">提案${i+1}</span>${Components.Tag(pr.tag)}</div><h3 class="text-[13px] font-bold leading-snug flex-1 break-words">${pr.title}</h3><div class="flex justify-end gap-1 mt-1"><button onclick="event.stopPropagation(); window.showProposalHelp('${pr.id}')" class="opacity-30"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button></div></div>`).join('')}</div><section><div class="flex items-center justify-between mb-4"><h2 class="heading-m">ミッション</h2><button class="p-1"><img src="./images/icon/icon-Filter.svg" class="w-6 h-4"></button></div><div class="space-y-3 pb-10">${p.missions.length === 0 ? '<p class="text-center py-4 text-[#A7AAAC] text-rs">ミッションがありません</p>' : p.missions.map(m => `<div onclick="window.openClearMissionModal('${m.id}')" class="bg-white border border-[#D3D6D8] rounded-xl p-4 flex flex-col shadow-sm relative animate-fadeIn group cursor-pointer ${m.status==='cleared'?'opacity-60':''}"><div class="flex items-center gap-3 mb-2">${Components.Tag(m.tag)}<span class="text-[11px] text-black/40 font-bold">残り${m.daysLeft}日</span> ${m.status==='cleared'?'<span class="text-[9px] font-bold text-[#9EDF05] ml-2">✓ CLEAR</span>':''}</div><h3 class="text-[14px] font-bold text-[#484545] pr-8">${m.title}</h3><div class="absolute right-4 top-1/2 -translate-y-1/2 opacity-40 p-2 cursor-pointer hover:opacity-100 transition-opacity" onclick="window.toggleMissionMenu(event, '${m.id}')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div></div>`).join('')}</div></section></div>` : state.mainBoardTab === 'ARCHIVE' ? renderArchive() : `<div class="p-10 text-center text-gray">ランキングは準備中です</div>`}</main>${state.mainBoardTab === 'MAIN' ? `<button onclick="window.openMissionModal()" class="fixed bottom-10 right-6 w-14 h-14 bg-[#0CA1E3] rounded-full shadow-[0_4px_15px_rgba(12,161,227,0.4)] flex items-center justify-center text-white active:scale-90 transition-transform z-40"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>` : ''}</div>`;
+
+  const ongoingMissions = getSortedMissions(p.missions.filter(m => m.status !== 'cleared'));
+
+  container.innerHTML = `
+    <div class="flex flex-col min-h-screen bg-[#FDFBF8]">
+      <div class="sticky top-0 bg-[#FDFBF8] z-30 shadow-sm">
+        ${Components.Header(p)}
+        ${Components.Tabs(state.mainBoardTab)}
+      </div>
+      <main class="flex-1 overflow-y-auto no-scrollbar pb-32">
+        ${state.mainBoardTab === 'MAIN' ? `
+          <div class="px-6 pt-4 space-y-6 page-transition">
+            <div onclick="window.openCalendarModal('view')" class="cursor-pointer bg-white border border-[#D3D6D8] rounded-xl p-2.5 flex items-center justify-center gap-3 shadow-sm scale-90 active:scale-95 transition-transform">
+               <img src="./images/icon/icon-Calender.svg" class="w-5 h-5">
+               <span class="heading-rs tracking-tight">開催まで残り <span class="text-[20px] font-mono">${p.daysLeft}</span> 日</span>
+            </div>
+            <div class="flex justify-center -mt-2"><div class="relative w-48 h-48 rounded-full border-[10px] border-[#EBE8E5] flex items-center justify-center shadow-inner"><div class="w-36 h-36 bg-[#CFD8FF] rounded-full flex items-center justify-center"><img src="${seed.plantPrefix}1.svg" class="w-24 h-28 object-contain mt-2 opacity-80"></div></div></div>
+            <div class="grid grid-cols-3 gap-2">
+               ${p.proposals.map((pr, i) => `<div onclick="window.addProposalToMission('${pr.id}')" class="cursor-pointer bg-white border border-[#D3D6D8] rounded-2xl p-2.5 shadow-sm flex flex-col min-h-[120px] active:bg-[#FDFBF8] transition-colors"><div class="flex items-center justify-between mb-1.5"><span class="text-[7.5px] text-black/40 font-bold">提案${i+1}</span>${Components.Tag(pr.tag)}</div><h3 class="text-[13px] font-bold leading-snug flex-1 break-words">${pr.title}</h3></div>`).join('')}
+               ${p.proposals.length === 0 ? `<div class="col-span-3 py-4 text-center text-[#A7AAAC] text-[10px] font-bold animate-pulse">12時間後に新しい提案が届きます...</div>` : ''}
+            </div>
+            <section>
+               <div class="flex items-center justify-between mb-4">
+                 <h2 class="heading-m">ミッション</h2>
+                 <select onchange="window.changeMissionSort(this.value)" class="bg-transparent text-[12px] font-bold text-[#A7AAAC] outline-none">
+                    <option value="createdAt" ${state.missionSortMode==='createdAt'?'selected':''}>制作日順</option>
+                    <option value="deadline" ${state.missionSortMode==='deadline'?'selected':''}>締切順</option>
+                    <option value="priority" ${state.missionSortMode==='priority'?'selected':''}>優先度順</option>
+                 </select>
+               </div>
+               <div class="space-y-3 pb-10">
+                  ${ongoingMissions.length === 0 ? '<p class="text-center py-10 text-[#A7AAAC] text-rs">全てのミッションがクリアされました！</p>' : ongoingMissions.map(m => `
+                    <div onclick="window.openClearMissionModal('${m.id}')" class="bg-white border border-[#D3D6D8] rounded-xl p-4 flex flex-col shadow-sm relative animate-fadeIn group cursor-pointer">
+                       <div class="flex items-center gap-3 mb-2">${Components.Tag(m.tag)}<span class="text-[11px] text-black/40 font-bold">${m.dates && m.dates.length > 0 ? m.dates[0] : '期限なし'}</span></div>
+                       <h3 class="text-[14px] font-bold text-[#484545] pr-8">${m.title}</h3>
+                       <div class="absolute right-4 top-1/2 -translate-y-1/2 opacity-40 p-2 cursor-pointer hover:opacity-100 transition-opacity" onclick="window.toggleMissionMenu(event, '${m.id}')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div>
+                    </div>`).join('')}
+               </div>
+            </section>
+          </div>
+        ` : state.mainBoardTab === 'ARCHIVE' ? renderArchive() : `<div class="p-10 text-center text-[#A7AAAC]">ランキングは準備中です</div>`}
+      </main>
+      ${state.mainBoardTab === 'MAIN' ? `<button onclick="window.openMissionModal()" class="fixed bottom-10 right-6 w-14 h-14 bg-[#0CA1E3] rounded-full shadow-[0_4px_15px_rgba(12,161,227,0.4)] flex items-center justify-center text-white active:scale-90 transition-transform z-40"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>` : ''}
+    </div>
+  `;
 }
 
 state.init();

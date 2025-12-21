@@ -43,7 +43,7 @@ const state = {
   projects: [],
   currentView: 'HOME',
   selectedProjectId: null,
-  mainBoardTab: 'MAIN', // MAIN, RANKING, ARCHIVE
+  mainBoardTab: 'MAIN', 
   editingMissionId: null,
   draftProject: { name: '', description: '', dates: [], seedType: 'jack' },
   draftMission: {
@@ -118,6 +118,35 @@ const state = {
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   },
 
+  // ポイント計算ヘルパー
+  getProjectPoints(project) {
+    let total = 0;
+    project.missions.forEach(m => {
+      if (m.status === 'cleared') {
+        const priority = m.priority || 1;
+        total += priority * 2;
+      }
+    });
+    return total;
+  },
+
+  // 成長段階計算ヘルパー (1-10段階)
+  getGrowthStage(points) {
+    const thresholds = [0, 30, 90, 210, 450, 930, 1890, 3810, 7650, 15330];
+    for (let i = thresholds.length - 1; i >= 0; i--) {
+      if (points >= thresholds[i]) return i + 1;
+    }
+    return 1;
+  },
+
+  // プラント画像パス取得
+  getPlantImagePath(project) {
+    const points = this.getProjectPoints(project);
+    const stage = this.getGrowthStage(points);
+    const seed = SEED_TYPES.find(s => s.id === project.seedType);
+    return `${seed.plantPrefix}${stage}.svg`;
+  },
+
   render() {
     const appEl = document.getElementById('app');
     if (!appEl) return;
@@ -172,21 +201,25 @@ window.editArchiveItem = (type) => {
   let missionId = '';
   let currentVal = '';
   let format = 'text';
+  let titleLabel = '';
 
-  if (type === 'title') { missionId = 'def-2'; currentVal = p.clearedData['def-2']?.content || p.name; }
-  else if (type === 'summary') { missionId = 'def-3'; currentVal = p.clearedData['def-3']?.content || p.description; }
+  if (type === 'title') { missionId = 'def-2'; currentVal = p.clearedData['def-2']?.content || p.name; titleLabel = 'タイトル'; }
+  else if (type === 'summary') { missionId = 'def-3'; currentVal = p.clearedData['def-3']?.content || p.description; titleLabel = '概要'; }
   else if (type === 'url') { 
     const m = p.missions.find(x => x.title === '広報リンクを挿入');
     missionId = m?.id || 'url-temp';
     currentVal = p.clearedData[missionId]?.content || '';
     format = 'link';
+    titleLabel = 'URL';
   } else if (type === 'venue') {
     const m = p.missions.find(x => x.title === '開催場所を決める');
     missionId = m?.id || 'venue-temp';
     currentVal = p.clearedData[missionId]?.content || '';
+    titleLabel = '場所';
   } else if (type === 'period') {
     missionId = 'period-temp';
     currentVal = p.clearedData['period-temp']?.content || (p.dates.length > 0 ? `${p.dates[0]} 〜 ${p.dates[p.dates.length-1]}` : '');
+    titleLabel = '期間';
   } else if (type === 'image') {
     const m = p.missions.find(x => x.title === 'メインビジュアルを作成');
     missionId = m?.id || 'image-temp';
@@ -194,31 +227,63 @@ window.editArchiveItem = (type) => {
     return;
   }
 
-  const newVal = prompt(`${type === 'url' ? 'URL' : '内容'}を入力してください`, currentVal);
-  if (newVal === null) return;
+  window.openEditModal(titleLabel, currentVal, format, (newVal) => {
+    let m = p.missions.find(x => x.id === missionId);
+    if (!m) {
+      m = {
+        id: missionId,
+        title: type === 'url' ? '広報リンクを挿入' : type === 'venue' ? '開催場所を決める' : type === 'period' ? '開催日時' : type,
+        tag: type === 'url' ? '広報' : '企画',
+        clearFormat: format,
+        status: 'cleared',
+        dates: [],
+        daysLeft: 7,
+        isDeletable: (missionId.startsWith('def-') || type === 'url' || type === 'venue') ? false : true,
+        createdAt: Date.now(),
+        priority: 3
+      };
+      p.missions.push(m);
+    } else {
+      m.status = 'cleared';
+    }
 
-  let m = p.missions.find(x => x.id === missionId);
-  if (!m) {
-    m = {
-      id: missionId,
-      title: type === 'url' ? '広報リンクを挿入' : type === 'venue' ? '開催場所を決める' : type === 'period' ? '開催日時' : type,
-      tag: type === 'url' ? '広報' : '企画',
-      clearFormat: format,
-      status: 'cleared',
-      dates: [],
-      daysLeft: 7,
-      isDeletable: (missionId.startsWith('def-') || type === 'url' || type === 'venue') ? false : true,
-      createdAt: Date.now(),
-      priority: 3
-    };
-    p.missions.push(m);
+    p.clearedData[missionId] = { content: newVal, timestamp: Date.now(), title: m.title, format: format };
+    state.save();
+    state.render();
+  });
+};
+
+window.openEditModal = (title, currentVal, format, onSave) => {
+  const overlay = document.createElement('div');
+  overlay.id = 'edit-archive-modal';
+  overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-6 page-transition';
+  
+  let inputHtml = '';
+  if (format === 'text' || title === '概要' || title === '期間') {
+    inputHtml = `<textarea id="edit-input" class="w-full h-40 p-4 rounded-2xl bg-[#EBE8E5] focus:outline-none text-r" placeholder="内容を入力してください">${currentVal}</textarea>`;
+  } else if (format === 'link') {
+    inputHtml = `<input type="url" id="edit-input" class="w-full p-4 rounded-2xl bg-[#EBE8E5] focus:outline-none text-r" placeholder="https://..." value="${currentVal}">`;
   } else {
-    m.status = 'cleared';
+    inputHtml = `<input type="text" id="edit-input" class="w-full p-4 rounded-2xl bg-[#EBE8E5] focus:outline-none text-r" placeholder="内容を入力してください" value="${currentVal}">`;
   }
 
-  p.clearedData[missionId] = { content: newVal, timestamp: Date.now(), title: m.title, format: format };
-  state.save();
-  state.render();
+  overlay.innerHTML = `
+    <div class="bg-white rounded-3xl w-full max-sm:w-[90%] max-w-sm p-8 shadow-2xl relative animate-fadeIn">
+      <button onclick="document.getElementById('edit-archive-modal').remove()" class="absolute top-4 right-4 p-2 opacity-40">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+      <h3 class="heading-m text-[#484545] mb-6 pr-6">${title}の編集</h3>
+      ${inputHtml}
+      <button id="save-edit-btn" class="btn-primary w-full py-4 mt-8 heading-r font-bold">保存する</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  document.getElementById('save-edit-btn').onclick = () => {
+    const val = document.getElementById('edit-input').value;
+    if (val !== null) onSave(val);
+    overlay.remove();
+  };
 };
 
 // --- インバイト機能 ---
@@ -252,6 +317,30 @@ window.shareInvite = (code) => {
   } else {
     window.copyInviteCode(code);
   }
+};
+
+// 既存プロジェクトから招待コードを表示するモーダル
+window.showProjectInviteModal = (code) => {
+  const overlay = document.createElement('div');
+  overlay.id = 'invite-only-modal';
+  overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-6 page-transition';
+  overlay.innerHTML = `
+    <div class="bg-white rounded-3xl w-full max-sm:w-[95%] max-w-sm p-8 shadow-2xl relative animate-fadeIn">
+      <button onclick="document.getElementById('invite-only-modal').remove()" class="absolute top-4 right-4 p-2 opacity-40">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+      <h2 class="heading-m text-[#484545] mb-8 text-center font-bold">メンバーを招待</h2>
+      <div onclick="window.copyInviteCode('${code}')" class="bg-[#FDFBF8] border border-[#D3D6D8] p-6 rounded-2xl shadow-sm cursor-pointer active:bg-gray-100 transition-colors mb-6">
+        <p class="text-[11px] text-[#A7AAAC] font-bold mb-2 text-center">タップしてコードをコピー</p>
+        <p class="heading-m tracking-[0.3em] font-mono text-[#484545] text-center">${code}</p>
+      </div>
+      <button onclick="window.shareInvite('${code}')" class="flex items-center justify-center gap-3 w-full bg-[#0CA1E3] text-white py-4 rounded-full font-bold shadow-lg active:scale-95 transition-transform mb-4">
+        <img src="./images/icon/icon-Link-white.svg" class="w-6 h-6">招待リンクを送る
+      </button>
+      <button onclick="document.getElementById('invite-only-modal').remove()" class="w-full py-3 text-rs font-bold text-[#A7AAAC]">閉じる</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
 };
 
 // --- ヘルパー ---
@@ -546,7 +635,26 @@ window.addProposalToMission = (pid) => {
 window.showProposalHelp = (e, pid) => {
   e.stopPropagation();
   const desc = MISSION_DESCRIPTIONS[pid] || "ミッションをクリアしてプロジェクトを進めましょう。";
-  alert(`【提案のヒント】\n\n${desc}`);
+  
+  const overlay = document.createElement('div');
+  overlay.id = 'help-modal';
+  overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-6 page-transition';
+  overlay.innerHTML = `
+    <div class="bg-white rounded-3xl w-full max-sm:w-[90%] max-w-sm p-8 shadow-2xl relative animate-fadeIn">
+      <button onclick="document.getElementById('help-modal').remove()" class="absolute top-4 right-4 p-2 opacity-40">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+      <div class="flex items-center gap-3 mb-4">
+        <img src="./images/icon/icon-Help.svg" class="w-6 h-6">
+        <h3 class="heading-m text-[#484545]">提案のヒント</h3>
+      </div>
+      <div class="bg-[#FDFBF8] p-5 rounded-2xl border border-[#D3D6D8]">
+        <p class="text-rs text-[#484545] font-bold leading-relaxed whitespace-pre-wrap">${desc}</p>
+      </div>
+      <button onclick="document.getElementById('help-modal').remove()" class="btn-primary w-full py-4 mt-8 heading-r font-bold">わかった</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
 };
 
 window.toggleMissionMenu = (e, missionId) => {
@@ -592,7 +700,9 @@ const Components = {
     if (!p) {
       return `<header class="flex justify-between items-center px-6 py-4 bg-[#FDFBF8] sticky top-0 z-20"><div class="flex-1"></div><button onclick="state.setView('CREATE_PROJECT_INFO')" class="flex items-center gap-2 border border-[#0CA1E3] text-[#0CA1E3] px-5 py-2 rounded-xl bg-white shadow-sm active:scale-95 transition-transform"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span class="heading-r font-bold">作成</span></button></header>`;
     }
-    return `<header class="flex justify-between items-center px-6 py-4 bg-[#FDFBF8]"><div class="flex items-center gap-3"><button onclick="state.setView('HOME')" class="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center"><img src="./images/icon/iocn-Chevron.svg" class="w-4 h-4 brightness-0 opacity-50"></button><div class="flex items-center gap-2"><img src="${SEED_TYPES.find(s=>s.id===p.seedType).path}" class="w-5 h-5"><span class="text-[14px] font-bold truncate max-w-[180px]">${p.name}</span></div></div><button class="p-1"><img src="./images/icon/icon-Setting.svg" class="w-6 h-6"></button></header>`;
+    // ポイント成長に応じた画像を使用
+    const plantImg = state.getPlantImagePath(p);
+    return `<header class="flex justify-between items-center px-6 py-4 bg-[#FDFBF8]"><div class="flex items-center gap-3"><button onclick="state.setView('HOME')" class="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center"><img src="./images/icon/iocn-Chevron.svg" class="w-4 h-4 brightness-0 opacity-50"></button><div class="flex items-center gap-2"><img src="${plantImg}" class="w-5 h-5 object-contain"><span class="text-[14px] font-bold truncate max-w-[180px]">${p.name}</span></div></div><button class="p-1"><img src="./images/icon/icon-Setting.svg" class="w-6 h-6"></button></header>`;
   },
   Tabs: (active) => `
     <div class="px-6 flex border-b border-[#D3D6D8] bg-[#FDFBF8]">
@@ -617,7 +727,18 @@ function renderHome(container) {
     let html = '';
     for (let i = 0; i < list.length; i += 3) {
       const row = list.slice(i, i + 3);
-      html += `<div class="grid grid-cols-3 gap-x-2 px-1 mb-2 items-end">${row.map(p => `<div class="flex flex-col items-center cursor-pointer group" onclick="state.setView('MAIN_BOARD', '${p.id}')"><span class="text-[10px] text-[#484545] mb-2 truncate w-full text-center px-1 font-bold">${p.name}</span><div class="h-24 w-full flex items-end justify-center mb-1"><img src="${SEED_TYPES.find(s=>s.id===p.seedType).path}" class="max-h-full max-w-full object-contain block h-full"></div></div>`).join('')}${Array(3 - row.length).fill('<div class="h-28"></div>').join('')}</div><div class="w-full h-[1.5px] bg-[#D3D6D8] mt-1 mb-8"></div>`;
+      html += `<div class="grid grid-cols-3 gap-x-2 px-1 mb-2 items-end">
+        ${row.map(p => {
+          const plantImg = state.getPlantImagePath(p);
+          return `<div class="flex flex-col items-center cursor-pointer group" onclick="state.setView('MAIN_BOARD', '${p.id}')">
+            <span class="text-[10px] text-[#484545] mb-2 truncate w-full text-center px-1 font-bold">${p.name}</span>
+            <div class="h-24 w-full flex items-end justify-center mb-1">
+              <img src="${plantImg}" class="max-h-full max-w-full object-contain block h-full">
+            </div>
+          </div>`;
+        }).join('')}
+        ${Array(3 - row.length).fill('<div class="h-28"></div>').join('')}
+      </div><div class="w-full h-[1.5px] bg-[#D3D6D8] mt-1 mb-8"></div>`;
     }
     return html;
   };
@@ -650,7 +771,7 @@ window.changeMissionSort = (mode) => {
 function renderMainBoard(container) {
   const p = state.projects.find(x => x.id === state.selectedProjectId);
   if (!p) return state.setView('HOME');
-  const seed = SEED_TYPES.find(s => s.id === p.seedType);
+  const plantImg = state.getPlantImagePath(p);
 
   const renderArchive = () => {
     const title = p.clearedData['def-2']?.content || '未設定', summary = p.clearedData['def-3']?.content || '未設定';
@@ -714,9 +835,7 @@ function renderMainBoard(container) {
   const renderRankingView = () => {
     return `
       <div class="flex-1 flex flex-col page-transition">
-        <!-- 表彰台エリア -->
         <div class="pt-12 pb-16 px-6 flex justify-center items-end gap-1">
-          <!-- 2位 -->
           <div class="flex flex-col items-center">
              <div class="w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden bg-gray-200 mb-2">
                 <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Dog" class="w-full h-full">
@@ -725,7 +844,6 @@ function renderMainBoard(container) {
                 <span class="text-white text-[32px] font-bold">2</span>
              </div>
           </div>
-          <!-- 1位 -->
           <div class="flex flex-col items-center">
              <div class="w-24 h-24 rounded-full border-4 border-white shadow-xl overflow-hidden bg-gray-200 mb-2 relative z-10 scale-110">
                 <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=King" class="w-full h-full">
@@ -734,7 +852,6 @@ function renderMainBoard(container) {
                 <span class="text-white text-[48px] font-bold">1</span>
              </div>
           </div>
-          <!-- 3位 -->
           <div class="flex flex-col items-center">
              <div class="w-16 h-16 rounded-full border-4 border-white shadow-md overflow-hidden bg-gray-200 mb-2">
                 <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Flower" class="w-full h-full">
@@ -745,12 +862,11 @@ function renderMainBoard(container) {
           </div>
         </div>
 
-        <!-- メンバーリスト/エンプティステート -->
         <div class="flex-1 bg-white rounded-t-[40px] shadow-[0_-10px_30px_rgba(0,0,0,0.05)] p-10 flex flex-col items-center justify-center text-center">
            <img src="./images/icon/icon-Setting.svg" class="w-16 h-16 opacity-10 mb-6 grayscale">
            <h3 class="text-m font-bold text-[#484545] mb-2">メンバーがいません</h3>
            <p class="text-rs text-[#A7AAAC] font-bold mb-8 leading-relaxed">メンバーを追加して<br>ミッションポイントを競い合いましょう！</p>
-           <button class="bg-[#FDFBF8] border border-[#D3D6D8] px-8 py-3 rounded-full text-rs font-bold text-[#484545] active:scale-95 transition-transform" onclick="state.setView('CREATE_PROJECT_INVITE', '${p.id}')">
+           <button class="bg-[#FDFBF8] border border-[#D3D6D8] px-8 py-3 rounded-full text-rs font-bold text-[#484545] active:scale-95 transition-transform" onclick="window.showProjectInviteModal('${p.inviteCode}')">
              メンバーを招待する
            </button>
         </div>
@@ -773,7 +889,13 @@ function renderMainBoard(container) {
                <img src="./images/icon/icon-Calender.svg" class="w-5 h-5">
                <span class="heading-rs tracking-tight">開催まで残り <span class="text-[20px] font-mono">${p.daysLeft}</span> 日</span>
             </div>
-            <div class="flex justify-center -mt-2"><div class="relative w-48 h-48 rounded-full border-[10px] border-[#EBE8E5] flex items-center justify-center shadow-inner"><div class="w-36 h-36 bg-[#CFD8FF] rounded-full flex items-center justify-center"><img src="${seed.plantPrefix}1.svg" class="w-24 h-28 object-contain mt-2 opacity-80"></div></div></div>
+            <div class="flex justify-center -mt-2">
+              <div class="relative w-48 h-48 rounded-full border-[10px] border-[#EBE8E5] flex items-center justify-center shadow-inner">
+                <div class="w-36 h-36 bg-[#CFD8FF] rounded-full flex items-center justify-center">
+                  <img src="${plantImg}" class="w-24 h-28 object-contain mt-2 opacity-100 transition-all duration-500">
+                </div>
+              </div>
+            </div>
             <div class="grid grid-cols-3 gap-2">
                ${p.proposals.map((pr, i) => `
                  <div class="relative bg-white border border-[#D3D6D8] rounded-2xl p-2.5 shadow-sm flex flex-col min-h-[120px] active:bg-[#FDFBF8] transition-colors group">

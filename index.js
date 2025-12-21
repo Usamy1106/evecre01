@@ -43,7 +43,7 @@ const state = {
   projects: [],
   currentView: 'HOME',
   selectedProjectId: null,
-  mainBoardTab: 'MAIN', 
+  mainBoardTab: 'MAIN', // MAIN, RANKING, ARCHIVE
   editingMissionId: null,
   draftProject: { name: '', description: '', dates: [], seedType: 'jack' },
   draftMission: {
@@ -63,6 +63,29 @@ const state = {
 
   save() {
     localStorage.setItem('event_planner_projects', JSON.stringify(this.projects));
+  },
+
+  // ポイント計算ロジック
+  getProjectPoints(project) {
+    return project.missions
+      .filter(m => m.status === 'cleared')
+      .reduce((sum, m) => sum + ((m.priority || 1) * 2), 0);
+  },
+
+  // 成長段階計算ロジック (1-10段階)
+  getGrowthStage(points) {
+    const thresholds = [0, 30, 90, 210, 450, 930, 1890, 3810, 7650, 15330];
+    for (let i = thresholds.length - 1; i >= 0; i--) {
+      if (points >= thresholds[i]) return i + 1;
+    }
+    return 1;
+  },
+
+  // 現在のプラント画像パスを取得
+  getPlantImagePath(project) {
+    const stage = this.getGrowthStage(this.getProjectPoints(project));
+    const seed = SEED_TYPES.find(s => s.id === project.seedType);
+    return `${seed.plantPrefix}${stage}.svg`;
   },
 
   setView(view, projectId = null) {
@@ -116,35 +139,6 @@ const state = {
     now.setHours(0,0,0,0);
     const diff = target.getTime() - now.getTime();
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-  },
-
-  // ポイント計算ヘルパー
-  getProjectPoints(project) {
-    let total = 0;
-    project.missions.forEach(m => {
-      if (m.status === 'cleared') {
-        const priority = m.priority || 1;
-        total += priority * 2;
-      }
-    });
-    return total;
-  },
-
-  // 成長段階計算ヘルパー (1-10段階)
-  getGrowthStage(points) {
-    const thresholds = [0, 30, 90, 210, 450, 930, 1890, 3810, 7650, 15330];
-    for (let i = thresholds.length - 1; i >= 0; i--) {
-      if (points >= thresholds[i]) return i + 1;
-    }
-    return 1;
-  },
-
-  // プラント画像パス取得
-  getPlantImagePath(project) {
-    const points = this.getProjectPoints(project);
-    const stage = this.getGrowthStage(points);
-    const seed = SEED_TYPES.find(s => s.id === project.seedType);
-    return `${seed.plantPrefix}${stage}.svg`;
   },
 
   render() {
@@ -319,25 +313,24 @@ window.shareInvite = (code) => {
   }
 };
 
-// 既存プロジェクトから招待コードを表示するモーダル
 window.showProjectInviteModal = (code) => {
   const overlay = document.createElement('div');
-  overlay.id = 'invite-only-modal';
+  overlay.id = 'project-invite-modal';
   overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-6 page-transition';
   overlay.innerHTML = `
     <div class="bg-white rounded-3xl w-full max-sm:w-[95%] max-w-sm p-8 shadow-2xl relative animate-fadeIn">
-      <button onclick="document.getElementById('invite-only-modal').remove()" class="absolute top-4 right-4 p-2 opacity-40">
+      <button onclick="document.getElementById('project-invite-modal').remove()" class="absolute top-4 right-4 p-2 opacity-40">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
       <h2 class="heading-m text-[#484545] mb-8 text-center font-bold">メンバーを招待</h2>
-      <div onclick="window.copyInviteCode('${code}')" class="bg-[#FDFBF8] border border-[#D3D6D8] p-6 rounded-2xl shadow-sm cursor-pointer active:bg-gray-100 transition-colors mb-6">
-        <p class="text-[11px] text-[#A7AAAC] font-bold mb-2 text-center">タップしてコードをコピー</p>
-        <p class="heading-m tracking-[0.3em] font-mono text-[#484545] text-center">${code}</p>
+      <div onclick="window.copyInviteCode('${code}')" class="bg-[#FDFBF8] border border-[#D3D6D8] p-6 rounded-2xl shadow-sm cursor-pointer active:bg-gray-100 transition-colors mb-6 text-center">
+        <p class="text-[11px] text-[#A7AAAC] font-bold mb-2">タップしてコードをコピー</p>
+        <p class="heading-m tracking-[0.3em] font-mono text-[#484545]">${code}</p>
       </div>
       <button onclick="window.shareInvite('${code}')" class="flex items-center justify-center gap-3 w-full bg-[#0CA1E3] text-white py-4 rounded-full font-bold shadow-lg active:scale-95 transition-transform mb-4">
         <img src="./images/icon/icon-Link-white.svg" class="w-6 h-6">招待リンクを送る
       </button>
-      <button onclick="document.getElementById('invite-only-modal').remove()" class="w-full py-3 text-rs font-bold text-[#A7AAAC]">閉じる</button>
+      <button onclick="document.getElementById('project-invite-modal').remove()" class="w-full py-3 text-rs font-bold text-[#A7AAAC]">閉じる</button>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -467,9 +460,23 @@ function renderCalendarInner(target) {
 window.moveCalendarMonth = (offset, target) => { state.calendarDate.setMonth(state.calendarDate.getMonth() + offset); renderCalendarInner(target); };
 window.toggleDate = (dateStr, target) => {
   if (target === 'view') return; 
-  const dates = target === 'project' ? state.draftProject.dates : state.draftMission.dates;
-  const idx = dates.indexOf(dateStr);
-  if (idx > -1) dates.splice(idx, 1); else dates.push(dateStr);
+  let dates = target === 'project' ? state.draftProject.dates : state.draftMission.dates;
+  
+  if (target === 'mission') {
+    // ミッション期限は1日のみ。選択済みなら解除、未選択ならそれ以外を消して追加
+    const idx = dates.indexOf(dateStr);
+    if (idx > -1) {
+      dates.splice(0, dates.length);
+    } else {
+      dates.splice(0, dates.length);
+      dates.push(dateStr);
+    }
+  } else {
+    // プロジェクト開催日は複数可
+    const idx = dates.indexOf(dateStr);
+    if (idx > -1) dates.splice(idx, 1); else dates.push(dateStr);
+  }
+  
   dates.sort();
   renderCalendarInner(target);
   if (target === 'project') state.render(); else window.renderMissionModalContent();
@@ -527,8 +534,7 @@ window.renderMissionModalContent = function() {
   if (!container || !titleEl) return;
   const isEdit = state.editingMissionId !== null, isBasic = state.missionModalTab === 'BASIC';
   titleEl.innerText = isEdit ? 'ミッションを編集' : '新規ミッションを作成';
-  const groups = getConsecutiveGroups(state.draftMission.dates);
-  let dateDisplay = groups.length > 0 ? `<div class="flex items-center gap-2"><div class="bg-[#EBE8E5] px-2 py-1 rounded">${groups[0][0]}</div> 〜 <div class="bg-[#EBE8E5] px-2 py-1 rounded">${groups[0][groups[0].length-1]}</div></div>` : 'カレンダーから設定する';
+  let dateDisplay = state.draftMission.dates.length > 0 ? `<div class="bg-[#EBE8E5] px-3 py-1.5 rounded-lg text-[#484545] font-bold text-rs">${state.draftMission.dates[0]}</div>` : 'カレンダーから設定する';
   
   const renderBasic = () => `
     <div class="flex flex-col h-full">
@@ -537,7 +543,11 @@ window.renderMissionModalContent = function() {
         <button onclick="window.setMissionTab('DETAIL')" class="text-[14px] font-bold pb-1 border-b-2 ${!isBasic ? 'border-[#9EDF05] text-[#9EDF05]' : 'border-transparent text-[#A7AAAC]'}">詳細設定</button>
       </div>
       <div class="space-y-4 flex-1">
-        <div><label class="heading-rs block mb-1 text-[#484545]">ミッション</label><input type="text" placeholder="ミッションを入力" value="${state.draftMission.title}" oninput="state.draftMission.title=this.value" class="input-field w-full px-4 py-3 focus:outline-none"></div>
+        <div>
+          <label class="heading-rs block mb-1 text-[#484545]">ミッション</label>
+          <input type="text" id="mission-title-input" placeholder="ミッションを入力" value="${state.draftMission.title}" oninput="state.draftMission.title=this.value; this.style.borderColor=''" class="input-field w-full px-4 py-3 focus:outline-none border-2 border-transparent transition-colors">
+          <p id="error-title" class="hidden text-[10px] font-bold mt-1" style="color: #e8383d;">※ミッション名は入力必須です</p>
+        </div>
         <div><div class="flex items-center gap-2 mb-1"><label class="heading-rs text-[#484545]">ラベル</label><button class="w-5 h-5 border border-[#A7AAAC] rounded-full flex items-center justify-center text-[#A7AAAC] text-sm">+</button></div><div class="flex gap-2">${['企画','運営','制作','広報'].map(l => { const sel = state.draftMission.labels.includes(l), conf = LABEL_CONFIG[l]; return `<button onclick="window.toggleMissionLabel('${l}')" class="px-4 py-1 rounded-full border text-[12px] font-bold transition-all ${sel ? `${conf.border} ${conf.text} ${conf.bg}` : 'border-[#D3D6D8] text-[#A7AAAC]'}">${l}</button>`; }).join('')}</div></div>
         <div><label class="heading-rs block mb-1 text-[#484545]">優先度</label><div class="flex gap-1">${[1,2,3,4,5].map(v => `<button onclick="state.draftMission.priority=${v};window.renderMissionModalContent()" class="p-0.5"><svg width="32" height="32" viewBox="0 0 24 24" fill="${state.draftMission.priority >= v ? '#FFC300' : 'none'}" stroke="${state.draftMission.priority >= v ? '#FFC300' : '#E1DFDC'}" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></button>`).join('')}</div></div>
         <div><label class="heading-rs block mb-1 text-[#484545]">期限</label><div class="flex items-center gap-2 mb-2 cursor-pointer" onclick="window.openCalendarModal('mission')"><img src="./images/icon/icon-Calender.svg" class="w-4 h-4 opacity-40"><span class="text-[12px] text-[#A7AAAC] font-bold">${dateDisplay}</span></div></div>
@@ -573,7 +583,15 @@ window.setMissionTab = (tab) => { state.missionModalTab = tab; window.renderMiss
 window.toggleMissionLabel = (l) => { state.draftMission.labels = [l]; window.renderMissionModalContent(); };
 
 window.createOrUpdateMission = () => {
-  if (!state.draftMission.title) return alert('ミッション名を入力してください');
+  const titleInput = document.getElementById('mission-title-input');
+  const errorText = document.getElementById('error-title');
+  
+  if (!state.draftMission.title) {
+    if (titleInput) titleInput.style.borderColor = '#e8383d';
+    if (errorText) errorText.classList.remove('hidden');
+    return;
+  }
+  
   const project = state.projects.find(p => p.id === state.selectedProjectId);
   if (state.editingMissionId) {
     const idx = project.missions.findIndex(m => m.id === state.editingMissionId);
@@ -674,6 +692,29 @@ window.toggleMissionMenu = (e, missionId) => {
   setTimeout(() => document.addEventListener('click', close), 10);
 };
 
+window.toggleSortMenu = (e) => {
+  e.stopPropagation();
+  const existingMenu = document.getElementById('sort-menu');
+  if (existingMenu) { existingMenu.remove(); return; }
+  
+  const menu = document.createElement('div');
+  menu.id = 'sort-menu';
+  menu.className = 'absolute right-0 top-10 bg-white border border-[#D3D6D8] rounded-2xl shadow-xl z-[60] overflow-hidden min-w-[140px] animate-fadeIn';
+  const modes = [
+    {id: 'createdAt', label: '制作日順'},
+    {id: 'deadline', label: '締切順'},
+    {id: 'priority', label: '優先度順'}
+  ];
+  menu.innerHTML = modes.map(m => `
+    <button onclick="window.changeMissionSort('${m.id}')" class="w-full text-left px-5 py-4 hover:bg-[#FDFBF8] text-rs font-bold border-b border-[#FDFBF8] flex items-center justify-between">
+      ${m.label} ${state.missionSortMode === m.id ? '<span class="text-[#0CA1E3]">●</span>' : ''}
+    </button>
+  `).join('');
+  e.currentTarget.parentElement.appendChild(menu);
+  const close = () => { menu.remove(); document.removeEventListener('click', close); };
+  setTimeout(() => document.addEventListener('click', close), 10);
+};
+
 window.showMissionListModal = () => {
   const p = state.projects.find(x => x.id === state.selectedProjectId);
   const overlay = document.createElement('div');
@@ -700,9 +741,8 @@ const Components = {
     if (!p) {
       return `<header class="flex justify-between items-center px-6 py-4 bg-[#FDFBF8] sticky top-0 z-20"><div class="flex-1"></div><button onclick="state.setView('CREATE_PROJECT_INFO')" class="flex items-center gap-2 border border-[#0CA1E3] text-[#0CA1E3] px-5 py-2 rounded-xl bg-white shadow-sm active:scale-95 transition-transform"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span class="heading-r font-bold">作成</span></button></header>`;
     }
-    // ポイント成長に応じた画像を使用
-    const plantImg = state.getPlantImagePath(p);
-    return `<header class="flex justify-between items-center px-6 py-4 bg-[#FDFBF8]"><div class="flex items-center gap-3"><button onclick="state.setView('HOME')" class="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center"><img src="./images/icon/iocn-Chevron.svg" class="w-4 h-4 brightness-0 opacity-50"></button><div class="flex items-center gap-2"><img src="${plantImg}" class="w-5 h-5 object-contain"><span class="text-[14px] font-bold truncate max-w-[180px]">${p.name}</span></div></div><button class="p-1"><img src="./images/icon/icon-Setting.svg" class="w-6 h-6"></button></header>`;
+    const currentPlant = state.getPlantImagePath(p);
+    return `<header class="flex justify-between items-center px-6 py-4 bg-[#FDFBF8]"><div class="flex items-center gap-3"><button onclick="state.setView('HOME')" class="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center"><img src="./images/icon/iocn-Chevron.svg" class="w-4 h-4 brightness-0 opacity-50"></button><div class="flex items-center gap-2"><img src="${currentPlant}" class="w-5 h-5 object-contain"><span class="text-[14px] font-bold truncate max-w-[180px]">${p.name}</span></div></div><button class="p-1"><img src="./images/icon/icon-Setting.svg" class="w-6 h-6"></button></header>`;
   },
   Tabs: (active) => `
     <div class="px-6 flex border-b border-[#D3D6D8] bg-[#FDFBF8]">
@@ -715,7 +755,14 @@ const Components = {
     const conf = LABEL_CONFIG[text] || { color: '#484545' };
     return `<span class="px-1.5 py-0.5 rounded text-[8px] text-white font-bold" style="background-color: ${conf.color}">${text}</span>`;
   },
-  PenIcon: (type) => `<button onclick="window.editArchiveItem('${type}')" class="p-1 opacity-60 hover:opacity-100 transition-opacity"><img src="./images/icon/%20icon-Pen.svg" class="w-4 h-4"></button>`
+  PenIcon: (type) => `<button onclick="window.editArchiveItem('${type}')" class="p-1 opacity-60 hover:opacity-100 transition-opacity"><img src="./images/icon/%20icon-Pen.svg" class="w-4 h-4"></button>`,
+  StepIndicator: (step) => `
+    <div class="flex items-center justify-center gap-3 mb-10">
+      <div class="w-2.5 h-2.5 rounded-full transition-colors duration-300 ${step === 1 ? 'bg-[#0CA1E3]' : 'bg-[#D3D6D8]'}"></div>
+      <div class="w-2.5 h-2.5 rounded-full transition-colors duration-300 ${step === 2 ? 'bg-[#0CA1E3]' : 'bg-[#D3D6D8]'}"></div>
+      <div class="w-2.5 h-2.5 rounded-full transition-colors duration-300 ${step === 3 ? 'bg-[#0CA1E3]' : 'bg-[#D3D6D8]'}"></div>
+    </div>
+  `
 };
 
 // --- 各画面レンダリング ---
@@ -729,11 +776,11 @@ function renderHome(container) {
       const row = list.slice(i, i + 3);
       html += `<div class="grid grid-cols-3 gap-x-2 px-1 mb-2 items-end">
         ${row.map(p => {
-          const plantImg = state.getPlantImagePath(p);
+          const currentPlant = state.getPlantImagePath(p);
           return `<div class="flex flex-col items-center cursor-pointer group" onclick="state.setView('MAIN_BOARD', '${p.id}')">
             <span class="text-[10px] text-[#484545] mb-2 truncate w-full text-center px-1 font-bold">${p.name}</span>
             <div class="h-24 w-full flex items-end justify-center mb-1">
-              <img src="${plantImg}" class="max-h-full max-w-full object-contain block h-full">
+              <img src="${currentPlant}" class="max-h-full max-w-full object-contain block h-full">
             </div>
           </div>`;
         }).join('')}
@@ -749,18 +796,80 @@ function renderCreateProjectInfo(container) {
   const groups = getConsecutiveGroups(state.draftProject.dates);
   const dateListHtml = groups.length === 0 ? `<p class="text-[12px] text-[#A7AAAC] text-center py-4">開催日が選択されていません</p>` : groups.map(g => `<div class="flex items-center justify-between bg-white border border-[#D3D6D8] px-5 py-4 rounded-xl shadow-sm animate-fadeIn"><div class="text-[14px] text-[#484545]">${g[0]}〜${g[g.length-1]}</div><button onclick="window.removeDraftDateGroup('${JSON.stringify(g)}')" class="p-1 opacity-30"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>`).join('');
   const canNext = state.draftProject.name && state.draftProject.description && state.draftProject.dates.length > 0;
-  container.innerHTML = `<div class="flex flex-col min-h-screen bg-[#FDFBF8]"><header class="px-6 py-8 text-center"><h1 class="heading-l text-[#0CA1E3]">新規プロジェクトの作成</h1></header><main class="flex-1 px-8 pt-2 pb-12 flex flex-col page-transition"><div class="space-y-6 mb-8"><div><label class="heading-rs block mb-2 text-[#484545]">プロジェクト名</label><input type="text" placeholder="プロジェクト名を入力" value="${state.draftProject.name}" oninput="window.updateDraftInfo('name', this.value)" class="input-field w-full px-5 py-4 focus:outline-none"></div><div><label class="heading-rs block mb-2 text-[#484545]">プロジェクトの説明</label><textarea placeholder="プロジェクトの説明を入力" rows="4" oninput="window.updateDraftInfo('description', this.value)" class="input-field w-full px-5 py-4 focus:outline-none resize-none">${state.draftProject.description}</textarea></div><div class="pt-2 border-t border-[#EBE8E5]"><div class="flex items-center justify-between mb-4"><label class="heading-rs text-[#484545]">開催日時</label><button onclick="window.openCalendarModal('project')" class="bg-[#EBE8E5] px-4 py-2 rounded-full font-bold text-[12px]">日付を追加</button></div><div class="space-y-3">${dateListHtml}</div></div></div><button id="next-btn" onclick="state.setView('CREATE_PROJECT_SEED')" class="btn-primary w-full py-4 heading-r font-bold mt-auto" ${canNext ? '' : 'disabled'}>次へ</button></main></div>`;
+  container.innerHTML = `
+    <div class="flex flex-col min-h-screen bg-[#FDFBF8]">
+      <header class="px-6 pt-10 pb-8 text-center">
+        <h1 class="heading-l text-[#0CA1E3]">新規プロジェクトの作成</h1>
+      </header>
+      <main class="flex-1 px-8 pt-2 pb-12 flex flex-col page-transition items-center">
+        <div class="w-full space-y-6 mb-12">
+          <div><label class="heading-rs block mb-2 text-[#484545]">プロジェクト名</label><input type="text" placeholder="プロジェクト名を入力" value="${state.draftProject.name}" oninput="window.updateDraftInfo('name', this.value)" class="input-field w-full px-5 py-4 focus:outline-none"></div>
+          <div><label class="heading-rs block mb-2 text-[#484545]">プロジェクトの説明</label><textarea placeholder="プロジェクトの説明を入力" rows="4" oninput="window.updateDraftInfo('description', this.value)" class="input-field w-full px-5 py-4 focus:outline-none resize-none">${state.draftProject.description}</textarea></div>
+          <div class="pt-2 border-t border-[#EBE8E5]">
+            <div class="flex items-center justify-between mb-4"><label class="heading-rs text-[#484545]">開催日時</label><button onclick="window.openCalendarModal('project')" class="bg-[#EBE8E5] px-4 py-2 rounded-full font-bold text-[12px]">日付を追加</button></div>
+            <div class="space-y-3">${dateListHtml}</div>
+          </div>
+        </div>
+        <div class="mt-auto w-full max-w-sm space-y-3">
+          ${Components.StepIndicator(1)}
+          <button id="next-btn" onclick="state.setView('CREATE_PROJECT_SEED')" class="btn-primary w-full py-5 heading-m font-bold shadow-lg" ${canNext ? '' : 'disabled'}>次へ</button>
+          <button onclick="state.setView('HOME')" class="btn-secondary w-full py-4 heading-m font-bold text-[#484545]">戻る</button>
+        </div>
+      </main>
+    </div>`;
 }
 
 function renderCreateProjectSeed(container) {
   let sel = state.draftProject.seedType || '';
-  container.innerHTML = `<div class="flex flex-col min-h-screen bg-[#FDFBF8]"><header class="px-6 py-8 text-center"><h1 class="heading-l text-[#0CA1E3]">新規プロジェクトの作成</h1></header><main class="flex-1 px-8 pt-6 pb-12 flex flex-col items-center page-transition"><h2 class="heading-l mb-12 text-[#484545]">種を選択</h2><div class="grid grid-cols-3 gap-6 mb-16 w-full max-w-[320px]">${SEED_TYPES.map(s => `<div onclick="state.draftProject.seedType='${s.id}';state.render()" class="flex flex-col items-center cursor-pointer"><div class="w-20 h-20 rounded-full bg-[#EBE8E5] flex items-center justify-center border-2 ${sel===s.id?'border-[#0CA1E3] scale-110 shadow-md':'border-transparent'}"><img src="${s.path}" class="w-12 h-12"></div></div>`).join('')}</div><button onclick="state.setView('CREATE_PROJECT_INVITE')" class="btn-primary w-full py-4 heading-r font-bold mt-auto" ${sel?'':'disabled'}>次へ</button></main></div>`;
+  container.innerHTML = `
+    <div class="flex flex-col min-h-screen bg-[#FDFBF8]">
+      <header class="px-6 pt-10 pb-8 text-center">
+        <h1 class="heading-l text-[#0CA1E3]">新規プロジェクトの作成</h1>
+      </header>
+      <main class="flex-1 px-8 pt-2 pb-12 flex flex-col items-center page-transition">
+        <h2 class="heading-m mb-12 text-[#484545] font-bold">種を選択</h2>
+        <div class="grid grid-cols-3 gap-6 mb-16 w-full max-w-[320px]">
+          ${SEED_TYPES.map(s => `<div onclick="state.draftProject.seedType='${s.id}';state.render()" class="flex flex-col items-center cursor-pointer">
+            <div class="w-20 h-20 rounded-full bg-[#EBE8E5] flex items-center justify-center border-2 ${sel===s.id?'border-[#0CA1E3] scale-110 shadow-md bg-white':'border-transparent'}">
+              <img src="${s.path}" class="w-12 h-12">
+            </div>
+          </div>`).join('')}
+        </div>
+        <div class="mt-auto w-full max-w-sm space-y-3">
+          ${Components.StepIndicator(2)}
+          <button onclick="state.setView('CREATE_PROJECT_INVITE')" class="btn-primary w-full py-5 heading-m font-bold shadow-lg" ${sel?'':'disabled'}>次へ</button>
+          <button onclick="state.setView('CREATE_PROJECT_INFO')" class="btn-secondary w-full py-4 heading-m font-bold text-[#484545]">戻る</button>
+        </div>
+      </main>
+    </div>`;
 }
 
 function renderCreateProjectInvite(container) {
   const code = state.draftProject.inviteCode || Math.random().toString(36).substring(2,10).toUpperCase();
   state.draftProject.inviteCode = code;
-  container.innerHTML = `<div class="flex flex-col min-h-screen bg-[#FDFBF8]"><header class="px-6 py-8 text-center"><h1 class="heading-l text-[#0CA1E3]">新規プロジェクトの作成</h1></header><main class="flex-1 px-8 pt-6 pb-12 flex flex-col items-center page-transition"><h2 class="heading-l mb-16 text-[#484545]">チームメンバーを招待</h2><div class="text-center space-y-6 mb-12 w-full"><div onclick="window.copyInviteCode('${code}')" class="bg-white border border-[#D3D6D8] p-8 rounded-2xl shadow-sm cursor-pointer active:bg-[#FDFBF8] transition-colors"><p class="text-[12px] text-[#A7AAAC] font-bold mb-2">タップしてコピー</p><p class="heading-m tracking-[0.3em] font-mono text-[#484545]">${code}</p></div><button onclick="window.shareInvite('${code}')" class="flex items-center justify-center gap-3 mx-auto bg-[#0CA1E3] text-white px-10 py-4 rounded-full font-bold shadow-lg active:scale-95 transition-transform"><img src="./images/icon/icon-Link-white.svg" class="w-6 h-6">招待リンクを送る</button></div><button onclick="state.addProject()" class="btn-primary w-full py-4 heading-r font-bold mt-auto">プロジェクトを作成</button></main></div>`;
+  container.innerHTML = `
+    <div class="flex flex-col min-h-screen bg-[#FDFBF8]">
+      <header class="px-6 pt-10 pb-8 text-center">
+        <h1 class="heading-l text-[#0CA1E3]">新規プロジェクトの作成</h1>
+      </header>
+      <main class="flex-1 px-8 pt-2 pb-12 flex flex-col items-center page-transition">
+        <h2 class="heading-m mb-12 text-[#484545] font-bold">チームメンバーを招待</h2>
+        <div class="text-center space-y-6 mb-12 w-full max-w-sm">
+          <div onclick="window.copyInviteCode('${code}')" class="bg-white border border-[#D3D6D8] p-8 rounded-2xl shadow-sm cursor-pointer active:bg-[#FDFBF8] transition-colors">
+            <p class="text-[11px] text-[#A7AAAC] font-bold mb-3 text-center">タップしてコードをコピー</p>
+            <p class="text-[22px] tracking-[0.3em] font-mono text-[#484545] text-center font-bold">${code}</p>
+          </div>
+          <button onclick="window.shareInvite('${code}')" class="flex items-center justify-center gap-3 mx-auto bg-[#0CA1E3] text-white px-10 py-4 rounded-full font-bold shadow-lg active:scale-95 transition-transform">
+            <img src="./images/icon/icon-Link-white.svg" class="w-5 h-5">招待リンクを送る
+          </button>
+        </div>
+        <div class="mt-auto w-full max-w-sm space-y-3">
+          ${Components.StepIndicator(3)}
+          <button onclick="state.addProject()" class="btn-primary w-full py-5 heading-m font-bold shadow-lg">プロジェクトを作成</button>
+          <button onclick="state.setView('CREATE_PROJECT_SEED')" class="btn-secondary w-full py-4 heading-m font-bold text-[#484545]">戻る</button>
+        </div>
+      </main>
+    </div>`;
 }
 
 window.changeMissionSort = (mode) => {
@@ -771,7 +880,7 @@ window.changeMissionSort = (mode) => {
 function renderMainBoard(container) {
   const p = state.projects.find(x => x.id === state.selectedProjectId);
   if (!p) return state.setView('HOME');
-  const plantImg = state.getPlantImagePath(p);
+  const currentPlant = state.getPlantImagePath(p);
 
   const renderArchive = () => {
     const title = p.clearedData['def-2']?.content || '未設定', summary = p.clearedData['def-3']?.content || '未設定';
@@ -781,11 +890,11 @@ function renderMainBoard(container) {
     const period = p.clearedData['period-temp']?.content || (p.dates.length > 0 ? `${p.dates[0]} 〜 ${p.dates[p.dates.length-1]}` : '未設定');
     
     return `
-      <div class="px-6 pt-6 pb-20 page-transition space-y-6">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3 bg-white border border-[#D3D6D8] rounded-xl px-4 py-2.5 shadow-sm active:scale-95 transition-transform cursor-pointer" onclick="window.openCalendarModal('view')">
-            <img src="./images/icon/icon-Calender.svg" class="w-5 h-5">
-            <span class="text-rs font-bold text-[#484545]">開催まで残り <span class="text-[18px] font-mono">${p.daysLeft}</span> 日</span>
+      <div class="pb-20 page-transition space-y-6">
+        <div class="px-6 pt-6 flex items-center justify-between">
+          <div class="flex items-center gap-2 bg-white border border-[#D3D6D8] rounded-full px-3 py-1.5 shadow-sm active:scale-95 transition-transform cursor-pointer" onclick="window.openCalendarModal('view')">
+            <img src="./images/icon/icon-Calender.svg" class="w-3.5 h-3.5">
+            <span class="text-[11px] font-bold text-[#484545]">残り <span class="text-[15px] font-mono">${p.daysLeft}</span> 日</span>
           </div>
           <button onclick="window.handleGoodClick(event)" class="flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm transition-all active:scale-90 ${p.hasLiked ? 'border-[#EE3E12] bg-[#EE3E12]/5' : 'border-[#D3D6D8] bg-white'}">
             <img src="./images/icon/icon-Good${p.hasLiked ? '-pressed' : ''}.svg" class="w-6 h-6">
@@ -793,14 +902,14 @@ function renderMainBoard(container) {
           </button>
         </div>
 
-        <div class="relative group w-full aspect-[2/1] overflow-hidden rounded-3xl bg-[#EBE8E5] flex items-center justify-center shadow-inner">
+        <div class="relative group w-full aspect-[2/1] overflow-hidden bg-[#EBE8E5] flex items-center justify-center shadow-inner">
           ${mainVisual ? `<img src="${mainVisual}" class="w-full h-full object-cover">` : `<img src="./images/icon/icon-image.svg" class="w-12 h-12 opacity-20">`}
           <div class="absolute bottom-4 right-4 bg-white/80 p-2 rounded-full shadow-lg">
             ${Components.PenIcon('image')}
           </div>
         </div>
 
-        <div class="space-y-8">
+        <div class="px-6 space-y-8">
           <div class="text-center">
             <div class="flex items-center justify-center gap-2 mb-1">
               <h2 class="text-[18px] font-bold text-[#484545] leading-snug">「${title}」</h2>
@@ -885,14 +994,14 @@ function renderMainBoard(container) {
       <main class="flex-1 overflow-y-auto no-scrollbar pb-32">
         ${state.mainBoardTab === 'MAIN' ? `
           <div class="px-6 pt-4 space-y-6 page-transition">
-            <div onclick="window.openCalendarModal('view')" class="cursor-pointer bg-white border border-[#D3D6D8] rounded-xl p-2.5 flex items-center justify-center gap-3 shadow-sm scale-90 active:scale-95 transition-transform">
-               <img src="./images/icon/icon-Calender.svg" class="w-5 h-5">
-               <span class="heading-rs tracking-tight">開催まで残り <span class="text-[20px] font-mono">${p.daysLeft}</span> 日</span>
+            <div onclick="window.openCalendarModal('view')" class="cursor-pointer bg-white border border-[#D3D6D8] rounded-full px-4 py-2 flex items-center justify-center gap-3 shadow-sm mx-auto w-fit active:scale-95 transition-transform">
+               <img src="./images/icon/icon-Calender.svg" class="w-4 h-4">
+               <span class="text-[12px] font-bold">開催まで残り <span class="text-[18px] font-mono">${p.daysLeft}</span> 日</span>
             </div>
             <div class="flex justify-center -mt-2">
               <div class="relative w-48 h-48 rounded-full border-[10px] border-[#EBE8E5] flex items-center justify-center shadow-inner">
-                <div class="w-36 h-36 bg-[#CFD8FF] rounded-full flex items-center justify-center">
-                  <img src="${plantImg}" class="w-24 h-28 object-contain mt-2 opacity-100 transition-all duration-500">
+                <div class="w-36 h-36 bg-[#CFD8FF] rounded-full flex items-center justify-center overflow-hidden">
+                  <img src="${currentPlant}" class="w-24 h-28 object-contain mt-2 transition-all duration-500 transform hover:scale-110">
                 </div>
               </div>
             </div>
@@ -912,11 +1021,11 @@ function renderMainBoard(container) {
             <section>
                <div class="flex items-center justify-between mb-4">
                  <h2 class="heading-m">ミッション</h2>
-                 <select onchange="window.changeMissionSort(this.value)" class="bg-transparent text-[12px] font-bold text-[#A7AAAC] outline-none">
-                    <option value="createdAt" ${state.missionSortMode==='createdAt'?'selected':''}>制作日順</option>
-                    <option value="deadline" ${state.missionSortMode==='deadline'?'selected':''}>締切順</option>
-                    <option value="priority" ${state.missionSortMode==='priority'?'selected':''}>優先度順</option>
-                 </select>
+                 <div class="relative">
+                   <button onclick="window.toggleSortMenu(event)" class="p-2 bg-white border border-[#D3D6D8] rounded-lg shadow-sm active:scale-95 transition-transform">
+                      <img src="./images/icon/icon-Filter.svg" class="w-5 h-4">
+                   </button>
+                 </div>
                </div>
                <div class="space-y-3 pb-10">
                   ${ongoingMissions.length === 0 ? '<p class="text-center py-10 text-[#A7AAAC] text-rs">全てのミッションがクリアされました！</p>' : ongoingMissions.map(m => `

@@ -12,7 +12,7 @@ const MISSION_DESCRIPTIONS = {
   'def-3': "概要は、目的を具体化し、関係者全員の認識を一致させる基盤です。「いつ、どこで、誰に、何を、どう届けるか（5W1H）」を明確にし、理想を現実に落とし込み、強固な土台を作りましょう。",
   'p1': "イベントをどこで行うか決めましょう。オンラインの場合はツール名を、対面の場合は施設名を入力します。",
   'p2': "SNSやWebサイトなど、参加者が詳細を確認できるURLを準備しましょう。",
-  'p3': "イベントの顔となる画像を作成します。テーマカラーやロゴを含めると効果的です。",
+  'p3': "イベントの顔となる画像を作成します。テーマカラーやロゴを含めると効果的な手法です。",
   'p4': "イベントの成功を測るための指標を設定します。来場者数、満足度、SNSのシェア数など、具体的に記述しましょう。",
   'p5': "限られたリソースをどこに集中させるか決めます。会場費、広報費、制作費などの概算を出し、優先順位をつけましょう。",
   'p6': "SNSで拡散されやすい独自のタグを決めましょう。イベント名を含めると効果的です。",
@@ -38,6 +38,8 @@ const LABEL_CONFIG = {
   '広報': { color: '#9EDF05', bg: 'bg-[#9EDF05]/10', border: 'border-[#9EDF05]', text: 'text-[#9EDF05]' }
 };
 
+const GROWTH_THRESHOLDS = [0, 30, 90, 210, 450, 930, 1890, 3810, 7650, 15330];
+
 // --- 状態管理 ---
 const state = {
   projects: [],
@@ -47,7 +49,7 @@ const state = {
   editingMissionId: null,
   draftProject: { name: '', description: '', dates: [], seedType: 'jack' },
   draftMission: {
-    title: '', labels: ['企画'], priority: 3, dates: [], clearFormat: 'text', note: ''
+    title: '', labels: ['企画'], priority: 5, dates: [], clearFormat: 'text', note: ''
   },
   missionModalTab: 'BASIC',
   calendarDate: new Date(),
@@ -73,13 +75,26 @@ const state = {
   },
 
   // 成長段階計算ロジック (1-10段階)
-  // 30点でステージ2へ
   getGrowthStage(points) {
-    const thresholds = [0, 30, 90, 210, 450, 930, 1890, 3810, 7650, 15330];
-    for (let i = thresholds.length - 1; i >= 0; i--) {
-      if (points >= thresholds[i]) return i + 1;
+    for (let i = GROWTH_THRESHOLDS.length - 1; i >= 0; i--) {
+      if (points >= GROWTH_THRESHOLDS[i]) return i + 1;
     }
     return 1;
+  },
+
+  // 現在のステージにおける進捗率 (0-100)
+  getStageProgress(points) {
+    let stageIndex = 0;
+    for (let i = GROWTH_THRESHOLDS.length - 1; i >= 0; i--) {
+      if (points >= GROWTH_THRESHOLDS[i]) {
+        stageIndex = i;
+        break;
+      }
+    }
+    if (stageIndex >= GROWTH_THRESHOLDS.length - 1) return 100;
+    const currentMin = GROWTH_THRESHOLDS[stageIndex];
+    const nextMin = GROWTH_THRESHOLDS[stageIndex + 1];
+    return Math.min(100, Math.max(0, ((points - currentMin) / (nextMin - currentMin)) * 100));
   },
 
   // 現在のプラント画像パスを取得
@@ -103,7 +118,6 @@ const state = {
   addProject() {
     if (!this.draftProject.name || !this.draftProject.description || this.draftProject.dates.length === 0) return;
     
-    // 初期フローのミッションは全て優先度星5（10点）に設定
     const defaultMissions = [
       { id: 'def-1', title: 'イベントの目的を決める', tag: '企画', daysLeft: 30, type: 'plan', isDeletable: false, dates: [], clearFormat: 'text', status: 'yet', createdAt: Date.now(), priority: 5 },
       { id: 'def-2', title: 'イベントのタイトルを決める', tag: '企画', daysLeft: 30, type: 'plan', isDeletable: false, dates: [], clearFormat: 'text', status: 'yet', createdAt: Date.now(), priority: 5 },
@@ -465,7 +479,6 @@ window.toggleDate = (dateStr, target) => {
   let dates = target === 'project' ? state.draftProject.dates : state.draftMission.dates;
   
   if (target === 'mission') {
-    // ミッション期限は1日のみ。選択済みなら解除、未選択ならそれ以外を消して追加
     const idx = dates.indexOf(dateStr);
     if (idx > -1) {
       dates.splice(0, dates.length);
@@ -474,7 +487,6 @@ window.toggleDate = (dateStr, target) => {
       dates.push(dateStr);
     }
   } else {
-    // プロジェクト開催日は複数可
     const idx = dates.indexOf(dateStr);
     if (idx > -1) dates.splice(idx, 1); else dates.push(dateStr);
   }
@@ -882,7 +894,11 @@ window.changeMissionSort = (mode) => {
 function renderMainBoard(container) {
   const p = state.projects.find(x => x.id === state.selectedProjectId);
   if (!p) return state.setView('HOME');
+  const points = state.getProjectPoints(p);
   const currentPlant = state.getPlantImagePath(p);
+  const stage = state.getGrowthStage(points);
+  const stageProgress = state.getStageProgress(points);
+  const overallProgress = (stage / 10) * 100; // ステージ1なら10%
 
   const renderArchive = () => {
     const title = p.clearedData['def-2']?.content || '未設定', summary = p.clearedData['def-3']?.content || '未設定';
@@ -903,14 +919,12 @@ function renderMainBoard(container) {
             <span class="text-rs font-bold font-mono ${p.hasLiked ? 'text-[#EE3E12]' : 'text-[#A7AAAC]'}">${p.likes || 0}</span>
           </button>
         </div>
-
         <div class="relative group w-full aspect-[2/1] overflow-hidden bg-[#EBE8E5] flex items-center justify-center shadow-inner">
           ${mainVisual ? `<img src="${mainVisual}" class="w-full h-full object-cover">` : `<img src="./images/icon/icon-image.svg" class="w-12 h-12 opacity-20">`}
           <div class="absolute bottom-4 right-4 bg-white/80 p-2 rounded-full shadow-lg">
             ${Components.PenIcon('image')}
           </div>
         </div>
-
         <div class="px-6 space-y-8">
           <div class="text-center">
             <div class="flex items-center justify-center gap-2 mb-1">
@@ -972,7 +986,6 @@ function renderMainBoard(container) {
              </div>
           </div>
         </div>
-
         <div class="flex-1 bg-white rounded-t-[40px] shadow-[0_-10px_30px_rgba(0,0,0,0.05)] p-10 flex flex-col items-center justify-center text-center">
            <img src="./images/icon/icon-Setting.svg" class="w-16 h-16 opacity-10 mb-6 grayscale">
            <h3 class="text-m font-bold text-[#484545] mb-2">メンバーがいません</h3>
@@ -986,6 +999,10 @@ function renderMainBoard(container) {
   };
 
   const ongoingMissions = getSortedMissions(p.missions.filter(m => m.status !== 'cleared'));
+  const circleRadius = 90;
+  const circumference = 2 * Math.PI * circleRadius;
+  const stageOffset = circumference - (stageProgress / 100) * circumference;
+  const overallOffset = circumference - (overallProgress / 100) * circumference;
 
   container.innerHTML = `
     <div class="flex flex-col min-h-screen bg-[#FDFBF8]">
@@ -1001,9 +1018,31 @@ function renderMainBoard(container) {
                <span class="text-[12px] font-bold">開催まで残り <span class="text-[18px] font-mono">${p.daysLeft}</span> 日</span>
             </div>
             <div class="flex justify-center -mt-2">
-              <div class="relative w-48 h-48 rounded-full border-[10px] border-[#EBE8E5] flex items-center justify-center shadow-inner">
-                <div class="w-36 h-36 bg-[#CFD8FF] rounded-full flex items-center justify-center overflow-hidden">
-                  <img src="${currentPlant}" class="w-24 h-28 object-contain mt-2 transition-all duration-500 transform hover:scale-110">
+              <div class="relative w-52 h-52 flex items-center justify-center">
+                <!-- 円形インジケーター SVG -->
+                <svg class="absolute w-full h-full transform -rotate-90" viewBox="0 0 200 200">
+                  <!-- ベーストラック -->
+                  <circle cx="100" cy="100" r="${circleRadius}" stroke="#EBE8E5" stroke-width="12" fill="none" />
+                  
+                  <!-- 全体進捗 (裏側) -->
+                  <circle cx="100" cy="100" r="${circleRadius}" stroke="#0CA1E3" stroke-width="12" fill="none" 
+                    stroke-dasharray="${circumference}" 
+                    stroke-dashoffset="${overallOffset}" 
+                    stroke-linecap="round"
+                    class="opacity-20"
+                    style="transition: stroke-dashoffset 1s ease-in-out" />
+                    
+                  <!-- ステージ内進捗 (表側) -->
+                  <circle cx="100" cy="100" r="${circleRadius}" stroke="#0CA1E3" stroke-width="12" fill="none" 
+                    stroke-dasharray="${circumference}" 
+                    stroke-dashoffset="${stageOffset}" 
+                    stroke-linecap="round"
+                    style="transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)" />
+                </svg>
+                
+                <!-- プラントビジュアル -->
+                <div class="w-40 h-40 bg-[#CFD8FF] rounded-full flex items-center justify-center overflow-hidden z-10 shadow-inner">
+                  <img src="${currentPlant}" class="w-28 h-32 object-contain mt-2 transition-all duration-500 transform hover:scale-110">
                 </div>
               </div>
             </div>

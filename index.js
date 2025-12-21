@@ -12,7 +12,7 @@ const MISSION_DESCRIPTIONS = {
   'def-3': "概要は、目的を具体化し、関係者全員の認識を一致させる基盤です。「いつ、どこで、誰に、何を、どう届けるか（5W1H）」を明確にし、理想を現実に落とし込み、強固な土台を作りましょう。",
   'p1': "イベントをどこで行うか決めましょう。オンラインの場合はツール名を、対面の場合は施設名を入力します。",
   'p2': "SNSやWebサイトなど、参加者が詳細を確認できるURLを準備しましょう。",
-  'p3': "イベントの顔となる画像を作成します。テーマカラーやロゴを含めると効果的な手法です。",
+  'p3': "イベントの顔となる画像を作成します。テーマカラーやロゴを含めると効果的です。",
   'p4': "イベントの成功を測るための指標を設定します。来場者数、満足度、SNSのシェア数など、具体的に記述しましょう。",
   'p5': "限られたリソースをどこに集中させるか決めます。会場費、広報費、制作費などの概算を出し、優先順位をつけましょう。",
   'p6': "SNSで拡散されやすい独自のタグを決めましょう。イベント名を含めると効果的です。",
@@ -82,24 +82,31 @@ const state = {
     return 1;
   },
 
-  // 現在のステージにおける進捗率 (0-100)
+  // 次の段階への進捗率 (0-100)
   getStageProgress(points) {
-    let stageIndex = 0;
-    for (let i = GROWTH_THRESHOLDS.length - 1; i >= 0; i--) {
-      if (points >= GROWTH_THRESHOLDS[i]) {
-        stageIndex = i;
-        break;
-      }
-    }
+    const stage = this.getGrowthStage(points);
+    const stageIndex = stage - 1;
     if (stageIndex >= GROWTH_THRESHOLDS.length - 1) return 100;
+    
     const currentMin = GROWTH_THRESHOLDS[stageIndex];
     const nextMin = GROWTH_THRESHOLDS[stageIndex + 1];
-    return Math.min(100, Math.max(0, ((points - currentMin) / (nextMin - currentMin)) * 100));
+    const range = nextMin - currentMin;
+    if (range <= 0) return 0;
+    return Math.min(100, Math.max(0, ((points - currentMin) / range) * 100));
+  },
+
+  // 全体の割合を示す進捗率 (1-10ステージベースで滑らかに)
+  getOverallProgress(points) {
+    const stage = this.getGrowthStage(points);
+    const stageProgress = this.getStageProgress(points);
+    // (現在のステージ - 1 + ステージ内の進み具合) / 全10ステージ
+    return ((stage - 1) + (stageProgress / 100)) * 10;
   },
 
   // 現在のプラント画像パスを取得
   getPlantImagePath(project) {
-    const stage = this.getGrowthStage(this.getProjectPoints(project));
+    const points = this.getProjectPoints(project);
+    const stage = this.getGrowthStage(points);
     const seed = SEED_TYPES.find(s => s.id === project.seedType);
     return `${seed.plantPrefix}${stage}.svg`;
   },
@@ -896,9 +903,8 @@ function renderMainBoard(container) {
   if (!p) return state.setView('HOME');
   const points = state.getProjectPoints(p);
   const currentPlant = state.getPlantImagePath(p);
-  const stage = state.getGrowthStage(points);
   const stageProgress = state.getStageProgress(points);
-  const overallProgress = (stage / 10) * 100; // ステージ1なら10%
+  const overallProgress = state.getOverallProgress(points);
 
   const renderArchive = () => {
     const title = p.clearedData['def-2']?.content || '未設定', summary = p.clearedData['def-3']?.content || '未設定';
@@ -999,10 +1005,13 @@ function renderMainBoard(container) {
   };
 
   const ongoingMissions = getSortedMissions(p.missions.filter(m => m.status !== 'cleared'));
+  
+  // 円形インジケーター設定
   const circleRadius = 90;
   const circumference = 2 * Math.PI * circleRadius;
-  const stageOffset = circumference - (stageProgress / 100) * circumference;
+  // ポイント0なら0%になるように計算
   const overallOffset = circumference - (overallProgress / 100) * circumference;
+  const stageOffset = circumference - (stageProgress / 100) * circumference;
 
   container.innerHTML = `
     <div class="flex flex-col min-h-screen bg-[#FDFBF8]">
@@ -1021,18 +1030,18 @@ function renderMainBoard(container) {
               <div class="relative w-52 h-52 flex items-center justify-center">
                 <!-- 円形インジケーター SVG -->
                 <svg class="absolute w-full h-full transform -rotate-90" viewBox="0 0 200 200">
-                  <!-- ベーストラック -->
+                  <!-- ベーストラック (最背面) -->
                   <circle cx="100" cy="100" r="${circleRadius}" stroke="#EBE8E5" stroke-width="12" fill="none" />
                   
-                  <!-- 全体進捗 (裏側) -->
-                  <circle cx="100" cy="100" r="${circleRadius}" stroke="#0CA1E3" stroke-width="12" fill="none" 
+                  <!-- 奥側：全体の割合を示すインジケーター (薄い色、細め) -->
+                  <circle cx="100" cy="100" r="${circleRadius}" stroke="#0CA1E3" stroke-width="8" fill="none" 
                     stroke-dasharray="${circumference}" 
                     stroke-dashoffset="${overallOffset}" 
                     stroke-linecap="round"
                     class="opacity-20"
-                    style="transition: stroke-dashoffset 1s ease-in-out" />
+                    style="transition: stroke-dashoffset 1s ease-out" />
                     
-                  <!-- ステージ内進捗 (表側) -->
+                  <!-- 手前側：次の段階への割合を示すインジケーター (濃い色、太め) -->
                   <circle cx="100" cy="100" r="${circleRadius}" stroke="#0CA1E3" stroke-width="12" fill="none" 
                     stroke-dasharray="${circumference}" 
                     stroke-dashoffset="${stageOffset}" 

@@ -21,14 +21,14 @@ const MISSION_DESCRIPTIONS = {
 };
 
 const PROPOSAL_POOL = [
-  { id: 'p1', title: '開催場所を決める', tag: '企画', type: 'plan', format: 'text', priority: 4 },
-  { id: 'p2', title: '広報リンクを挿入', tag: '広報', type: 'public', format: 'link', priority: 3 },
-  { id: 'p3', title: 'メインビジュアルを作成', tag: '制作', type: 'create', format: 'image', priority: 4 },
-  { id: 'p4', title: '数値目標（KPI）を設定する', tag: '企画', type: 'plan', format: 'text', priority: 4 },
+  { id: 'p1', title: '開催場所を決める', tag: '企画', type: 'plan', format: 'text', priority: 5 },
+  { id: 'p2', title: '広報リンクを挿入', tag: '広報', type: 'public', format: 'link', priority: 5 },
+  { id: 'p3', title: 'メインビジュアルを作成', tag: '制作', type: 'create', format: 'image', priority: 5 },
+  { id: 'p4', title: '数値目標（KPI）を設定する', tag: '企画', type: 'plan', format: 'text', priority: 5 },
   { id: 'p5', title: '予算配分を決める', tag: '運営', type: 'op', format: 'text', priority: 5 },
-  { id: 'p6', title: 'SNSハッシュタグを決定', tag: '広報', type: 'public', format: 'text', priority: 3 },
+  { id: 'p6', title: 'SNSハッシュタグを決定', tag: '広報', type: 'public', format: 'text', priority: 5 },
   { id: 'p7', title: '当日のタイムスケジュール', tag: '運営', type: 'op', format: 'text', priority: 5 },
-  { id: 'p8', title: '必要な機材リスト作成', tag: '制作', type: 'create', format: 'text', priority: 3 }
+  { id: 'p8', title: '必要な機材リスト作成', tag: '制作', type: 'create', format: 'text', priority: 5 }
 ];
 
 const LABEL_CONFIG = {
@@ -65,7 +65,7 @@ const state = {
     localStorage.setItem('event_planner_projects', JSON.stringify(this.projects));
   },
 
-  // ポイント計算ロジック
+  // ポイント計算ロジック (星5 = 10点)
   getProjectPoints(project) {
     return project.missions
       .filter(m => m.status === 'cleared')
@@ -73,6 +73,7 @@ const state = {
   },
 
   // 成長段階計算ロジック (1-10段階)
+  // 30点でステージ2へ
   getGrowthStage(points) {
     const thresholds = [0, 30, 90, 210, 450, 930, 1890, 3810, 7650, 15330];
     for (let i = thresholds.length - 1; i >= 0; i--) {
@@ -102,10 +103,11 @@ const state = {
   addProject() {
     if (!this.draftProject.name || !this.draftProject.description || this.draftProject.dates.length === 0) return;
     
+    // 初期フローのミッションは全て優先度星5（10点）に設定
     const defaultMissions = [
-      { id: 'def-1', title: 'イベントの目的を決める', tag: '企画', daysLeft: 30, type: 'plan', isDeletable: false, dates: [], clearFormat: 'text', status: 'yet', createdAt: Date.now(), priority: 3 },
-      { id: 'def-2', title: 'イベントのタイトルを決める', tag: '企画', daysLeft: 30, type: 'plan', isDeletable: false, dates: [], clearFormat: 'text', status: 'yet', createdAt: Date.now(), priority: 3 },
-      { id: 'def-3', title: 'イベントの概要を決める', tag: '企画', daysLeft: 30, type: 'plan', isDeletable: false, dates: [], clearFormat: 'text', status: 'yet', createdAt: Date.now(), priority: 3 }
+      { id: 'def-1', title: 'イベントの目的を決める', tag: '企画', daysLeft: 30, type: 'plan', isDeletable: false, dates: [], clearFormat: 'text', status: 'yet', createdAt: Date.now(), priority: 5 },
+      { id: 'def-2', title: 'イベントのタイトルを決める', tag: '企画', daysLeft: 30, type: 'plan', isDeletable: false, dates: [], clearFormat: 'text', status: 'yet', createdAt: Date.now(), priority: 5 },
+      { id: 'def-3', title: 'イベントの概要を決める', tag: '企画', daysLeft: 30, type: 'plan', isDeletable: false, dates: [], clearFormat: 'text', status: 'yet', createdAt: Date.now(), priority: 5 }
     ];
 
     const newProject = {
@@ -234,7 +236,7 @@ window.editArchiveItem = (type) => {
         daysLeft: 7,
         isDeletable: (missionId.startsWith('def-') || type === 'url' || type === 'venue') ? false : true,
         createdAt: Date.now(),
-        priority: 3
+        priority: 5
       };
       p.missions.push(m);
     } else {
@@ -386,7 +388,7 @@ window.submitMissionClear = (missionId) => {
   const project = state.projects.find(p => p.id === state.selectedProjectId);
   let m = project.missions.find(x => x.id === missionId);
   if (!m) {
-     m = { id: missionId, title: 'ミッション', tag: '企画', clearFormat: 'text', status: 'yet', dates: [], daysLeft: 7, createdAt: Date.now(), priority: 3, isDeletable: true };
+     m = { id: missionId, title: 'ミッション', tag: '企画', clearFormat: 'text', status: 'yet', dates: [], daysLeft: 7, createdAt: Date.now(), priority: 5, isDeletable: true };
      project.missions.push(m);
   }
   let content = '';
@@ -490,7 +492,7 @@ window.openMissionModal = (missionId = null) => {
     const m = project.missions.find(x => x.id === missionId);
     state.draftMission = { ...m, dates: [...(m.dates || [])], labels: [m.tag] };
   } else {
-    state.draftMission = { title: '', labels: ['企画'], priority: 3, dates: [], clearFormat: 'text', note: '' };
+    state.draftMission = { title: '', labels: ['企画'], priority: 5, dates: [], clearFormat: 'text', note: '' };
   }
   state.missionModalTab = 'BASIC';
   let overlay = document.getElementById('mission-overlay');
@@ -551,7 +553,7 @@ window.renderMissionModalContent = function() {
         <div><div class="flex items-center gap-2 mb-1"><label class="heading-rs text-[#484545]">ラベル</label><button class="w-5 h-5 border border-[#A7AAAC] rounded-full flex items-center justify-center text-[#A7AAAC] text-sm">+</button></div><div class="flex gap-2">${['企画','運営','制作','広報'].map(l => { const sel = state.draftMission.labels.includes(l), conf = LABEL_CONFIG[l]; return `<button onclick="window.toggleMissionLabel('${l}')" class="px-4 py-1 rounded-full border text-[12px] font-bold transition-all ${sel ? `${conf.border} ${conf.text} ${conf.bg}` : 'border-[#D3D6D8] text-[#A7AAAC]'}">${l}</button>`; }).join('')}</div></div>
         <div><label class="heading-rs block mb-1 text-[#484545]">優先度</label><div class="flex gap-1">${[1,2,3,4,5].map(v => `<button onclick="state.draftMission.priority=${v};window.renderMissionModalContent()" class="p-0.5"><svg width="32" height="32" viewBox="0 0 24 24" fill="${state.draftMission.priority >= v ? '#FFC300' : 'none'}" stroke="${state.draftMission.priority >= v ? '#FFC300' : '#E1DFDC'}" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></button>`).join('')}</div></div>
         <div><label class="heading-rs block mb-1 text-[#484545]">期限</label><div class="flex items-center gap-2 mb-2 cursor-pointer" onclick="window.openCalendarModal('mission')"><img src="./images/icon/icon-Calender.svg" class="w-4 h-4 opacity-40"><span class="text-[12px] text-[#A7AAAC] font-bold">${dateDisplay}</span></div></div>
-        <div><label class="heading-rs block mb-3 text-[#484545]">形式</label><div class="flex justify-around">${['text', 'image', 'link'].map(f => `<div onclick="state.draftMission.clearFormat='${f}';window.renderMissionModalContent()" class="flex flex-col items-center gap-1.5 cursor-pointer"><div class="w-12 h-12 border-2 rounded-lg flex items-center justify-center ${state.draftMission.clearFormat===f ? 'border-[#0CA1E3]' : 'border-[#A7AAAC]'}"><img src="./images/icon/icon-${f==='text'?'TextBox':f==='image'?'image':'Link'}.svg" class="w-6 h-6"></div><span class="text-[9px] font-bold">${f==='text'?'テキスト':f==='image'?'画像':'リンク'}形式</span></div>`).join('')}</div></div>
+        <div><label class="heading-rs block mb-3 text-[#484545]">形式</label><div class="flex justify-around">${['text', 'image', 'link'].map(f => `<div onclick="state.draftMission.clearFormat='${f}';window.renderMissionModalContent()" class="flex flex-col items-center gap-1.5 cursor-pointer"><div class="w-12 h-12 border-2 rounded-lg flex items-center justify-center ${state.draftMission.clearFormat===f ? 'border-[#0CA1E3]' : 'border-[#A7AAAC]'}"><img src="./images/icon/icon-${f==='text'?'TextBox':f==='image'?'image-color':'Link'}.svg" class="w-6 h-6"></div><span class="text-[9px] font-bold">${f==='text'?'テキスト':f==='image'?'画像':'リンク'}形式</span></div>`).join('')}</div></div>
       </div>
       <button onclick="window.createOrUpdateMission()" class="btn-primary w-full py-4 heading-r font-bold mt-4 shadow-lg shadow-blue-200">${isEdit ? '保存' : '作成'}</button>
     </div>
@@ -1022,7 +1024,7 @@ function renderMainBoard(container) {
                <div class="flex items-center justify-between mb-4">
                  <h2 class="heading-m">ミッション</h2>
                  <div class="relative">
-                   <button onclick="window.toggleSortMenu(event)" class="p-2 bg-white border border-[#D3D6D8] rounded-lg shadow-sm active:scale-95 transition-transform">
+                   <button onclick="window.toggleSortMenu(event)" class="p-1 active:scale-95 transition-transform">
                       <img src="./images/icon/icon-Filter.svg" class="w-5 h-4">
                    </button>
                  </div>
